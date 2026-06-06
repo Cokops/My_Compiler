@@ -1,0 +1,34 @@
+# Build files
+build/
+*.o
+*.a
+*.so
+*.exe
+my_compiler
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+parser.cpp
+parser.hpp
+scanner.cpp
+output.ll
+*.ll
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# Logs
+*.log
