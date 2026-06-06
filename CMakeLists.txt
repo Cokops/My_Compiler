@@ -4,63 +4,85 @@ project(MyCompiler LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Поиск Flex и Bison
-find_package(FLEX REQUIRED)
-find_package(BISON REQUIRED)
+# Для Windows
+if(WIN32)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-D_SCL_SECURE_NO_WARNINGS)
+    add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
+endif()
 
 # Поиск LLVM
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM: ${LLVM_VERSION}")
-message(STATUS "LLVM include dirs: ${LLVM_INCLUDE_DIRS}")
-message(STATUS "LLVM libraries: ${LLVM_LIBRARY_DIRS}")
-
-# Добавляем флаги компиляции LLVM
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-# Генерация файлов Flex и Bison
-bison_target(parser
-    src/parser.y
-    ${CMAKE_CURRENT_BINARY_DIR}/parser.hpp
-    COMPILE_FLAGS "-d"
-)
+# Поиск Flex и Bison
+find_package(FLEX REQUIRED)
+find_package(BISON REQUIRED)
 
-flex_target(scanner
-    src/scanner.l
-    ${CMAKE_CURRENT_BINARY_DIR}/scanner.cpp
-)
-
-# Создание статической библиотеки из Flex/Bison кода
-add_flex_bison_dependency(scanner parser)
-
-# Исходные файлы проекта
-set(SOURCES
-    src/main.cpp
-    src/ast.cpp
-    src/semantic_analyzer.cpp
-    src/codegen_llvm.cpp
+# Генерация парсера
+BISON_TARGET(MyParser
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser.y
     ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
-    ${FLEX_SCANNER_FILE}
+    COMPILE_FLAGS "-d"
+    DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/parser.hpp
+)
+
+# Генерация лексера
+FLEX_TARGET(MyLexer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/scanner.l
+    ${CMAKE_CURRENT_BINARY_DIR}/lexer.cpp
+)
+
+# Зависимости
+add_flex_bison_dependency(MyLexer MyParser)
+
+# Исходные файлы
+set(SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/semantic_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen_llvm.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/lexer.cpp
+)
+
+# Заголовочные файлы
+set(HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast.h
+    ${CMAKE_CURRENT_BINARY_DIR}/parser.hpp
 )
 
 # Создание исполняемого файла
-add_executable(my_compiler ${SOURCES})
-target_link_libraries(my_compiler
-    ${LLVM_LIBRARIES}
-    ${FLEX_LIBRARIES}
-    ${BISON_LIBRARIES}
+add_executable(my_compiler ${SOURCES} ${HEADERS})
+
+# Включаем директории для заголовков
+target_include_directories(my_compiler PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-# Настройка путей к библиотекам LLVM
-if(LLVM_LINK_MODE STREQUAL "STATIC")
-    # Для статической линковки добавляем зависимости
-    llvm_map_components_to_libnames(LLVM_LIBS
-        core
-        irreader
-        linker
-        native
-        nativecodegen
-        support
+# LLVM библиотеки
+llvm_map_components_to_libnames(llvm_libs
+    core
+    irreader
+    support
+    native
+    passes
+    analysis
+    target
+)
+
+target_link_libraries(my_compiler ${llvm_libs})
+
+# Для Windows добавляем системные библиотеки
+if(WIN32)
+    target_link_libraries(my_compiler 
+        psapi 
+        shell32 
+        ole32 
+        uuid 
+        advapi32
     )
-    target_link_libraries(my_compiler ${LLVM_LIBS})
 endif()

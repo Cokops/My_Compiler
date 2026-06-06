@@ -1,22 +1,35 @@
 %{
+// Windows compatibility - ДОЛЖНО БЫТЬ ПЕРВЫМ
+#ifdef _WIN32
+#define _CRT_NONSTDC_NO_DEPRECATE
+#include <string.h>
+#include <io.h>
+
+#ifndef strdup
+inline char* strdup(const char* s) {
+    if (!s) return nullptr;
+    size_t len = strlen(s) + 1;
+    char* newstr = (char*)malloc(len);
+    if (newstr) memcpy(newstr, s, len);
+    return newstr;
+}
+#endif
+
+#define isatty _isatty
+#define fileno _fileno
+#endif
+
 #include <iostream>
 #include <string>
 #include <cstdlib>
 #include <cstring>
-#include "parser.hpp"
 #include "ast.h"
-#include "scanner.h"
+#include "parser.hpp"
 
-// Windows compatibility
-#ifdef _WIN32
-#include <io.h>
-#define isatty _isatty
-#define fileno _fileno
-#define strdup _strdup
-#endif
-
-extern Scanner* g_scanner;
 extern ProgramAST* g_program;
+
+// Для отслеживания позиции
+int yycolumn = 1;
 %}
 
 %option noyywrap
@@ -24,6 +37,11 @@ extern ProgramAST* g_program;
 %option nounistd
 
 %%
+
+\n { 
+    yylineno++; 
+    yycolumn = 1; 
+}
 
 "if"                    { return KEYWORD_IF; }
 "else"                  { return KEYWORD_ELSE; }
@@ -72,19 +90,22 @@ extern ProgramAST* g_program;
 }
 
 \"[^\"]*\"              { 
-    yylval.str = _strdup(yytext); 
+    char* str = (char*)malloc(strlen(yytext) - 1);
+    strncpy(str, yytext + 1, strlen(yytext) - 2);
+    str[strlen(yytext) - 2] = '\0';
+    yylval.str = str;
     return STRING_LITERAL; 
 }
 
 [a-zA-Z_][a-zA-Z0-9_]*  { 
-    yylval.str = _strdup(yytext); 
+    yylval.str = strdup(yytext); 
     return IDENTIFIER; 
 }
 
-[ \t\r\n]+              { /* пропустить пробелы */ }
+[ \t\r]+                { yycolumn += yyleng; /* skip whitespace */ }
 
-"//".*                  { /* пропустить комментарии */ }
+"//".*                  { /* skip comments */ }
 
-.                       { /* игнорировать неизвестные символы */ }
+.                       { yycolumn++; /* ignore unknown characters */ }
 
 %%

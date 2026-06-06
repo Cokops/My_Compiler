@@ -20,7 +20,7 @@ llvm::Type* CodegenLLVM::getLLVMType(const std::string& type) {
     } else if (type == "void") {
         return llvm::Type::getVoidTy(context);
     }
-    return llvm::Type::getVoidTy(context);
+    return llvm::Type::getInt32Ty(context);
 }
 
 llvm::Function* CodegenLLVM::createFunction(const std::string& name, llvm::Type* returnType,
@@ -37,18 +37,18 @@ llvm::Function* CodegenLLVM::createFunction(const std::string& name, llvm::Type*
 }
 
 bool CodegenLLVM::generate(ProgramAST* program, const std::string& outputFile) {
-    // Генерируем код для всех функций
     for (const auto& func : program->getFunctions()) {
-        llvm::Function* llvmFunc = generateFunction(func);  // ← func уже указатель
+        llvm::Function* llvmFunc = generateFunction(func);
         if (llvmFunc) {
             functions[func->getName()] = llvmFunc;
         }
     }
     
-    // Проверяем на ошибки
-    llvm::verifyModule(*module, &llvm::errs());
+    if (llvm::verifyModule(*module, &llvm::errs())) {
+        std::cerr << "Module verification failed\n";
+        return false;
+    }
     
-    // Выводим в файл
     std::error_code ec;
     llvm::raw_fd_ostream dest(outputFile, ec);
     if (ec) {
@@ -66,37 +66,41 @@ llvm::Function* CodegenLLVM::generateFunction(FunctionAST* func) {
     llvm::Type* returnType = getLLVMType(func->getReturnType());
     llvm::Function* llvmFunc = createFunction(func->getName(), returnType, func->getParams());
     
-    // Создаем базовый блок для тела функции
+    if (!llvmFunc) return nullptr;
+    
     llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(context, "entry", llvmFunc);
     builder->SetInsertPoint(entryBlock);
     
-    // Сохраняем текущую функцию
     currentFunction = llvmFunc;
     
-    // Регистрируем параметры функции
     size_t paramIndex = 0;
     for (auto& arg : llvmFunc->args()) {
         const std::string& paramName = func->getParams()[paramIndex].first;
         arg.setName(paramName);
-        variables[paramName] = &arg;
+        
+        llvm::AllocaInst* alloca = builder->CreateAlloca(getLLVMType(func->getParams()[paramIndex].second), nullptr, paramName);
+        builder->CreateStore(&arg, alloca);
+        variables[paramName] = alloca;
         paramIndex++;
     }
     
-    // Генерируем тело функции
-    llvm::Value* bodyResult = generateStatement(func->getBody());  // ← getBody() возвращает указатель
+    generateStatement(func->getBody());
     
-    // Если тело не завершено return-ом, добавляем ret void
     if (func->getReturnType() == "void" && !builder->GetInsertBlock()->getTerminator()) {
         builder->CreateRetVoid();
+    } else if (!builder->GetInsertBlock()->getTerminator()) {
+        builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
     }
     
     return llvmFunc;
 }
 
 llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
+    if (!stmt) return nullptr;
+    
     if (auto* varDecl = dynamic_cast<VarDeclAST*>(stmt)) {
         llvm::Type* type = getLLVMType(varDecl->getType());
-        llvm::Value* alloc = builder->CreateAlloca(type, nullptr, varDecl->getName());
+        llvm::AllocaInst* alloc = builder->CreateAlloca(type, nullptr, varDecl->getName());
         
         variables[varDecl->getName()] = alloc;
         
@@ -110,10 +114,11 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
         return alloc;
     }
     else if (auto* assign = dynamic_cast<AssignExprAST*>(stmt)) {
-        if (variables.find(assign->getName()) != variables.end()) {
+        auto it = variables.find(assign->getName());
+        if (it != variables.end()) {
             llvm::Value* value = generateExpr(assign->getValue());
             if (value) {
-                builder->CreateStore(value, variables[assign->getName()]);
+                builder->CreateStore(value, it->second);
                 return value;
             }
         }
@@ -139,13 +144,15 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
 }
 
 llvm::Value* CodegenLLVM::generateExpr(ExprAST* expr) {
+    if (!expr) return nullptr;
+    
     if (auto* numExpr = dynamic_cast<NumberExprAST*>(expr)) {
         return llvm::ConstantInt::get(context, llvm::APInt(32, static_cast<int>(numExpr->getValue())));
     }
     else if (auto* varExpr = dynamic_cast<VariableExprAST*>(expr)) {
-        if (variables.find(varExpr->getName()) != variables.end()) {
-            llvm::Value* ptr = variables[varExpr->getName()];
-            return builder->CreateLoad(llvm::Type::getInt32Ty(context), ptr, varExpr->getName());
+        auto it = variables.find(varExpr->getName());
+        if (it != variables.end()) {
+            return builder->CreateLoad(getLLVMType("int"), it->second, varExpr->getName());
         }
         return nullptr;
     }
@@ -165,35 +172,38 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
     
     if (!lhs || !rhs) return nullptr;
     
-    switch (expr->getOp()) {
-        case '+':
-            return builder->CreateAdd(lhs, rhs, "addtmp");
-        case '-':
-            return builder->CreateSub(lhs, rhs, "subtmp");
-        case '*':
-            return builder->CreateMul(lhs, rhs, "multmp");
-        case '/':
-            return builder->CreateSDiv(lhs, rhs, "divtmp");
-        case '<':
-            return builder->CreateICmpSLT(lhs, rhs, "lttmp");
-        case '>':
-            return builder->CreateICmpSGT(lhs, rhs, "gttmp");
-        case '=':
-            return builder->CreateICmpEQ(lhs, rhs, "eqtmp");
+    int op = expr->getOp();
+    
+    switch (op) {
+        case 272: return builder->CreateAdd(lhs, rhs, "addtmp");      // PLUS
+        case 273: return builder->CreateSub(lhs, rhs, "subtmp");      // MINUS
+        case 274: return builder->CreateMul(lhs, rhs, "multmp");      // MULTIPLY
+        case 275: return builder->CreateSDiv(lhs, rhs, "divtmp");     // DIVIDE
+        case 276: return builder->CreateICmpEQ(lhs, rhs, "eqtmp");    // ASSIGN? EQ должен быть 277
+        case 277: return builder->CreateICmpEQ(lhs, rhs, "eqtmp");    // EQ
+        case 278: return builder->CreateICmpNE(lhs, rhs, "netmp");    // NEQ
+        case 279: return builder->CreateICmpSLT(lhs, rhs, "lttmp");   // LT (<)
+        case 280: return builder->CreateICmpSGT(lhs, rhs, "gttmp");   // GT (>) - ИСПРАВЛЕНО
+        case 281: return builder->CreateICmpSLE(lhs, rhs, "letmp");   // LE (<=)
+        case 282: return builder->CreateICmpSGE(lhs, rhs, "getmp");   // GE (>=)
+        case 283: return builder->CreateAnd(lhs, rhs, "andtmp");      // AND
+        case 284: return builder->CreateOr(lhs, rhs, "ortmp");        // OR
         default:
-            std::cerr << "Unknown binary operator: " << expr->getOp() << "\n";
+            std::cerr << "Unknown binary operator: " << op << "\n";
             return nullptr;
     }
 }
 
 llvm::Value* CodegenLLVM::generateCall(CallExprAST* call) {
-    llvm::Function* callee = functions[call->getCallee()];
-    if (!callee) {
+    auto it = functions.find(call->getCallee());
+    if (it == functions.end()) {
         std::cerr << "Error: Function '" << call->getCallee() << "' not defined\n";
         return nullptr;
     }
     
+    llvm::Function* callee = it->second;
     std::vector<llvm::Value*> args;
+    
     for (const auto& arg : call->getArgs()) {
         llvm::Value* argValue = generateExpr(arg);
         if (!argValue) return nullptr;
@@ -207,8 +217,10 @@ llvm::Value* CodegenLLVM::generateIf(IfStmtAST* ifStmt) {
     llvm::Value* cond = generateExpr(ifStmt->getCond());
     if (!cond) return nullptr;
     
-    if (!cond->getType()->isIntegerTy(1)) {
-        cond = builder->CreateICmpNE(cond, builder->getInt32(0), "ifcond");
+    // Для операторов сравнения cond уже i1, не нужно преобразовывать
+    // Если cond i32, преобразуем в i1
+    if (cond->getType()->isIntegerTy(32)) {
+        cond = builder->CreateICmpNE(cond, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "ifcond");
     }
     
     llvm::Function* func = builder->GetInsertBlock()->getParent();
@@ -251,8 +263,8 @@ llvm::Value* CodegenLLVM::generateWhile(WhileStmtAST* whileStmt) {
     llvm::Value* cond = generateExpr(whileStmt->getCond());
     if (!cond) return nullptr;
     
-    if (!cond->getType()->isIntegerTy(1)) {
-        cond = builder->CreateICmpNE(cond, builder->getInt32(0), "whilecond");
+    if (cond->getType()->isIntegerTy(32)) {
+        cond = builder->CreateICmpNE(cond, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "whilecond");
     }
     
     builder->CreateCondBr(cond, loopBodyBB, loopEndBB);
@@ -286,8 +298,8 @@ llvm::Value* CodegenLLVM::generateFor(ForStmtAST* forStmt) {
     llvm::Value* cond = generateExpr(forStmt->getCond());
     if (!cond) return nullptr;
     
-    if (!cond->getType()->isIntegerTy(1)) {
-        cond = builder->CreateICmpNE(cond, builder->getInt32(0), "forcond");
+    if (cond->getType()->isIntegerTy(32)) {
+        cond = builder->CreateICmpNE(cond, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "forcond");
     }
     
     builder->CreateCondBr(cond, loopBodyBB, loopEndBB);
@@ -299,7 +311,9 @@ llvm::Value* CodegenLLVM::generateFor(ForStmtAST* forStmt) {
     }
     
     builder->SetInsertPoint(loopIncBB);
-    generateExpr(forStmt->getInc());
+    if (forStmt->getInc()) {
+        generateExpr(forStmt->getInc());
+    }
     builder->CreateBr(loopCondBB);
     
     builder->SetInsertPoint(loopEndBB);

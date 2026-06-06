@@ -18,6 +18,23 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Type.h"
 
+// Токены операторов (должны совпадать с parser.y)
+namespace Tokens {
+    const int PLUS = 274;
+    const int MINUS = 275;
+    const int MULTIPLY = 276;
+    const int DIVIDE = 277;
+    const int EQ = 278;
+    const int NEQ = 279;
+    const int LT = 280;
+    const int GT = 281;
+    const int LE = 282;
+    const int GE = 283;
+    const int AND = 284;
+    const int OR = 285;
+    const int NOT = 286;
+}
+
 // Класс генератора кода LLVM
 class CodegenLLVM {
 public:
@@ -57,6 +74,12 @@ private:
     llvm::Function* createFunction(const std::string& name, llvm::Type* returnType,
                                    const std::vector<std::pair<std::string, std::string>>& params);
     
+    // Генерировать бинарную операцию
+    llvm::Value* generateBinaryExpr(BinaryExprAST* expr);
+    
+    // Генерировать вызов функции
+    llvm::Value* generateCall(CallExprAST* call);
+    
     // Генерировать оператор if
     llvm::Value* generateIf(IfStmtAST* ifStmt);
     
@@ -71,12 +94,6 @@ private:
     
     // Генерировать блок
     llvm::Value* generateBlock(BlockStmtAST* block);
-    
-    // Генерировать бинарную операцию
-    llvm::Value* generateBinaryExpr(BinaryExprAST* expr);
-    
-    // Генерировать вызов функции
-    llvm::Value* generateCall(CallExprAST* call);
 };
 
 #endif // CODEGEN_LLVM_H

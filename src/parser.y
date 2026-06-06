@@ -2,12 +2,12 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <utility>
 #include <cstring>
 #include <cstdlib>
 #include "ast.h"
-#include "scanner.h"
 
-// Для Windows compatibility
+// Windows compatibility
 #ifdef _WIN32
 #include <string.h>
 inline char* strdup(const char* s) {
@@ -19,12 +19,9 @@ inline char* strdup(const char* s) {
 }
 #endif
 
-// Прототипы функций
 void yyerror(const char* s);
 int yylex();
 
-// Глобальные переменные
-extern Scanner* g_scanner;
 extern ProgramAST* g_program;
 %}
 
@@ -45,11 +42,22 @@ extern ProgramAST* g_program;
 %token <num> INT_LITERAL FLOAT_LITERAL
 %token <str> IDENTIFIER STRING_LITERAL
 
-%token EOF_TOKEN ERROR_TOKEN
+%token EOF_TOKEN 0 "end of file"
+%token ERROR_TOKEN
 %token KEYWORD_IF KEYWORD_ELSE KEYWORD_WHILE KEYWORD_FOR
 %token KEYWORD_INT KEYWORD_FLOAT KEYWORD_BOOL KEYWORD_VOID KEYWORD_RETURN
 %token PLUS MINUS MULTIPLY DIVIDE ASSIGN EQ NEQ LT GT LE GE AND OR NOT
 %token LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET SEMICOLON COMMA
+
+// Приоритеты операторов
+%right ASSIGN
+%left OR
+%left AND
+%left EQ NEQ
+%left LT GT LE GE
+%left PLUS MINUS
+%left MULTIPLY DIVIDE
+%right NOT
 
 // Типы для правил грамматики
 %type <func> functionDefinition
@@ -75,18 +83,18 @@ program
                 g_program->addFunction($1);
             }
         }
-    | /* пусто */
+    | /* empty */
         { }
     ;
 
 functionDefinition
     : type IDENTIFIER LPAREN parameterList RPAREN blockStmt
         { 
-            std::string typeStr = $1 ? $1 : "int";
+            std::string typeStr = ($1 != nullptr) ? $1 : "int";
             $$ = new FunctionAST($2, typeStr, *$4, $6);
             delete $4;
             if ($1) free($1);
-            free($2);
+            if ($2) free($2);
         }
     ;
 
@@ -103,7 +111,7 @@ parameterList
             $$->insert($$->begin(), *$1);
             delete $1;
         }
-    | /* пусто */
+    | /* empty */
         { $$ = new std::vector<std::pair<std::string, std::string>>(); }
     ;
 
@@ -111,11 +119,11 @@ parameter
     : type IDENTIFIER
         { 
             $$ = new std::pair<std::string, std::string>(
-                std::string($1 ? $1 : "int"),
+                std::string(($1 != nullptr) ? $1 : "int"),
                 std::string($2)
             );
             if ($1) free($1);
-            free($2);
+            if ($2) free($2);
         }
     ;
 
@@ -182,17 +190,17 @@ statement
 variableDecl
     : type IDENTIFIER
         { 
-            std::string typeStr = $1 ? $1 : "int";
+            std::string typeStr = ($1 != nullptr) ? $1 : "int";
             $$ = new VarDeclAST($2, typeStr);
             if ($1) free($1);
-            free($2);
+            if ($2) free($2);
         }
     | type IDENTIFIER ASSIGN expression
         { 
-            std::string typeStr = $1 ? $1 : "int";
+            std::string typeStr = ($1 != nullptr) ? $1 : "int";
             $$ = new VarDeclAST($2, typeStr, $4);
             if ($1) free($1);
-            free($2);
+            if ($2) free($2);
         }
     ;
 
@@ -200,7 +208,7 @@ assignmentExpr
     : IDENTIFIER ASSIGN expression
         { 
             $$ = new AssignExprAST($1, $3);
-            free($1);
+            if ($1) free($1);
         }
     ;
 
@@ -279,15 +287,9 @@ relationalExpr
     | relationalExpr GT additiveExpr
         { $$ = new BinaryExprAST(GT, $1, $3); }
     | relationalExpr LE additiveExpr
-        { 
-            auto* gtExpr = new BinaryExprAST(GT, $1, $3);
-            $$ = new BinaryExprAST(NOT, gtExpr, nullptr);
-        }
+        { $$ = new BinaryExprAST(LE, $1, $3); }
     | relationalExpr GE additiveExpr
-        { 
-            auto* ltExpr = new BinaryExprAST(LT, $1, $3);
-            $$ = new BinaryExprAST(NOT, ltExpr, nullptr);
-        }
+        { $$ = new BinaryExprAST(GE, $1, $3); }
     ;
 
 additiveExpr
@@ -329,7 +331,7 @@ primaryExpr
     : IDENTIFIER
         { 
             $$ = new VariableExprAST($1);
-            free($1);
+            if ($1) free($1);
         }
     | numberExpr
         { $$ = $1; }
@@ -352,7 +354,7 @@ stringExpr
     : STRING_LITERAL
         { 
             $$ = new StringExprAST($1);
-            free($1);
+            if ($1) free($1);
         }
     ;
 
@@ -361,7 +363,7 @@ functionCall
         { 
             $$ = new CallExprAST($1, *$3);
             delete $3;
-            free($1);
+            if ($1) free($1);
         }
     ;
 
@@ -376,13 +378,13 @@ argumentList
             $$ = $3;
             $$->insert($$->begin(), $1);
         }
-    | /* пусто */
+    | /* empty */
         { $$ = new std::vector<ExprAST*>(); }
     ;
 
 %%
 
 void yyerror(const char* s) {
-    std::cerr << "Parse error at line " << g_scanner->getLine() 
-              << ", column " << g_scanner->getColumn() << ": " << s << std::endl;
+    extern int yylineno;
+    std::cerr << "Parse error at line " << yylineno << ": " << s << std::endl;
 }

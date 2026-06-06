@@ -1,17 +1,16 @@
 #include <iostream>
 #include <fstream>
-#include <memory>
+#include <string>
 #include "ast.h"
-#include "scanner.h"
 #include "codegen_llvm.h"
-#include "parser.hpp" // Bison генерирует parser.hpp
+#include "parser.hpp"
 
-// Глобальные переменные
-Scanner* g_scanner = nullptr;
+// Глобальные переменные для Flex
+extern FILE* yyin;
+extern int yyparse();
+extern int yylineno;
+
 ProgramAST* g_program = nullptr;
-
-// Прототипы функций
-int yyparse();
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
@@ -20,8 +19,8 @@ int main(int argc, char* argv[]) {
     }
     
     // Открываем входной файл
-    std::ifstream inputFile(argv[1]);
-    if (!inputFile.is_open()) {
+    FILE* inputFile = fopen(argv[1], "r");
+    if (!inputFile) {
         std::cerr << "Error: Cannot open input file '" << argv[1] << "'\n";
         return 1;
     }
@@ -35,8 +34,9 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // Создаем лексический анализатор
-    g_scanner = new Scanner(inputFile);
+    // Настраиваем Flex
+    yyin = inputFile;
+    yylineno = 1;
     
     // Создаем AST
     g_program = new ProgramAST();
@@ -46,8 +46,8 @@ int main(int argc, char* argv[]) {
     
     if (parseResult != 0) {
         std::cerr << "Parse failed!\n";
-        delete g_scanner;
         delete g_program;
+        fclose(inputFile);
         return 1;
     }
     
@@ -55,23 +55,20 @@ int main(int argc, char* argv[]) {
     std::cout << "AST:\n";
     g_program->print();
     
-    // Семантический анализ
-    // TODO: Запустить семантический анализатор
-    
     // Генерация LLVM IR
     CodegenLLVM codegen;
     if (codegen.generate(g_program, outputFile)) {
         std::cout << "LLVM IR generated successfully: " << outputFile << "\n";
     } else {
         std::cerr << "Failed to generate LLVM IR\n";
-        delete g_scanner;
         delete g_program;
+        fclose(inputFile);
         return 1;
     }
     
     // Очистка
-    delete g_scanner;
     delete g_program;
+    fclose(inputFile);
     
-    return 0;
+    return 0; 
 }
