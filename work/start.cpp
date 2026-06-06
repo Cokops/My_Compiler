@@ -1,64 +1,62 @@
 #include <iostream>
-#include <fstream>
-#include <string>
 #include <cstdlib>
+#include <string>
+#include <windows.h>
 
-#ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
-#endif
-
-void runCommand(const std::string& cmd) {
-    std::cout << "Executing: " << cmd << std::endl;
-    int result = system(cmd.c_str());
-    if (result != 0) {
-        std::cerr << "Command failed with code: " << result << std::endl;
-    }
-}
-
-std::string readFile(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) return "File not found!";
-    std::string content((std::istreambuf_iterator<char>(file)),
-                         std::istreambuf_iterator<char>());
-    return content;
+std::string getExePath() {
+    char buffer[MAX_PATH];
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    std::string path(buffer);
+    size_t pos = path.find_last_of("\\");
+    return path.substr(0, pos);
 }
 
 int main() {
-    std::string compilerDir = "C:\\Users\\Артём\\Desktop\\My_Compiler\\build\\Release";
-    std::string currentDir = "C:\\Users\\Артём\\Desktop\\My_Compiler\\work";
+    // Получаем путь к папке, где находится start.exe (папка work)
+    std::string exeDir = getExePath();
     
-    // Переходим в папку с компилятором
-    std::string cdCmd = "cd /d " + compilerDir;
-    system(cdCmd.c_str());
+    // Путь к папке Release
+    std::string releaseDir = exeDir + "\\..\\build\\Release";
     
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "       MY COMPILER RUNNER (C++)" << std::endl;
-    std::cout << "========================================\n" << std::endl;
+    std::string testFile = exeDir + "\\text.txt";
     
-    // 1. Запуск компилятора
-    std::cout << "[1] RUNNING COMPILER..." << std::endl;
-    system("my_compiler.exe test.txt");
-    std::cout << std::endl;
+    system("echo ========================================");
+    system("echo        MY COMPILER RUNNER");
+    system("echo ========================================");
+    system("echo.");
     
-    // 2. Показ LLVM IR кода
-    std::cout << "[2] LLVM IR CODE:" << std::endl;
-    std::cout << "----------------------------------------" << std::endl;
-    std::string llvmIR = readFile("output.ll");
-    std::cout << llvmIR;
-    std::cout << "----------------------------------------" << std::endl;
+    // 1. Компиляция - копируем test.txt в папку Release
+    system("echo [1] COMPILING...");
+    std::string copyCmd = "copy \"" + testFile + "\" \"" + releaseDir + "\\text.txt\" > nul";
+    system(copyCmd.c_str());
     
-    // 3. Запуск LLVM интерпретатора
-    std::cout << "\n[3] EXECUTING PROGRAM..." << std::endl;
-    int result = system("lli output.ll");
+    std::string compileCmd = "cd /d \"" + releaseDir + "\" && my_compiler.exe text.txt";  // ← ИСПРАВЛЕНО: test.txt
+    system(compileCmd.c_str());
+    system("echo.");
     
-    // 4. Показ результата
-    std::cout << "\n[4] RESULT:" << std::endl;
+    // 2. Показ LLVM IR
+    system("echo [2] LLVM IR CODE:");
+    system("echo ----------------------------------------");
+    std::string typeCmd = "type \"" + releaseDir + "\\output.ll\"";
+    system(typeCmd.c_str());
+    system("echo ----------------------------------------");
+    system("echo.");
+    
+    // 3. Запуск
+    system("echo [3] EXECUTING...");
+    std::string lliCmd = "cd /d \"" + releaseDir + "\" && lli output.ll";
+    int result = system(lliCmd.c_str());
+    system("echo.");
+    
+    // 4. Результат
+    system("echo [4] RESULT:");
     std::cout << "Program returned: " << result << std::endl;
     
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "            DONE!" << std::endl;
-    std::cout << "========================================\n" << std::endl;
+    system("echo.");
+    system("echo ========================================");
+    system("echo            DONE!");
+    system("echo ========================================");
+    system("pause");
     
     return 0;
 }
