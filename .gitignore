@@ -20,6 +20,7 @@ Thumbs.db
 # Generated files
 parser.cpp
 parser.hpp
+lexer.cpp
 scanner.cpp
 output.ll
 *.ll

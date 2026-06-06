@@ -3,6 +3,7 @@
 #include <memory>
 #include "ast.h"
 #include "scanner.h"
+#include "codegen_llvm.h"
 #include "parser.hpp" // Bison генерирует parser.hpp
 
 // Глобальные переменные

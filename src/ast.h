@@ -3,17 +3,23 @@
 
 #include <string>
 #include <vector>
-#include <memory>
 #include <iostream>
 
 // Базовый класс для всех узлов AST
 class ASTNode {
 public:
     virtual ~ASTNode() = default;
+    virtual void codegen() {
+        std::cout << "Generating code for AST node\n";
+    }
     virtual void print(int depth = 0) const = 0;
+protected:
+    static void indent(int depth) {
+        for (int i = 0; i < depth; ++i) std::cout << "  ";
+    }
 };
 
-// Узел для выражений
+// Выражения
 class ExprAST : public ASTNode {
 public:
     virtual ~ExprAST() = default;
@@ -21,231 +27,248 @@ public:
         indent(depth);
         std::cout << "ExprAST\n";
     }
-protected:
-    static void indent(int depth) {
-        for (int i = 0; i < depth; ++i) std::cout << "  ";
-    }
 };
 
-// Узел для числовых констант
+// Числовые константы
 class NumberExprAST : public ExprAST {
     double Val;
 public:
     NumberExprAST(double val) : Val(val) {}
-    double getValue() const { return Val; }
+    void codegen() override {
+        std::cout << "  Load number: " << Val << "\n";
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "NumberExpr: " << Val << "\n";
     }
 };
 
-// Узел для строковых констант
+// Строковые константы
 class StringExprAST : public ExprAST {
     std::string Val;
 public:
     StringExprAST(const std::string& val) : Val(val) {}
-    const std::string& getValue() const { return Val; }
+    void codegen() override {
+        std::cout << "  Load string: \"" << Val << "\"\n";
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "StringExpr: \"" << Val << "\"\n";
     }
 };
 
-// Узел для переменных
+// Переменные
 class VariableExprAST : public ExprAST {
     std::string Name;
 public:
     VariableExprAST(const std::string& name) : Name(name) {}
-    const std::string& getName() const { return Name; }
+    void codegen() override {
+        std::cout << "  Load variable: " << Name << "\n";
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "VariableExpr: " << Name << "\n";
     }
 };
 
-// Узел для бинарных операций
+// Бинарные операции
 class BinaryExprAST : public ExprAST {
-    char Op;
-    std::unique_ptr<ExprAST> LHS, RHS;
+    int Op;
+    ExprAST* LHS;
+    ExprAST* RHS;
 public:
-    BinaryExprAST(char op, std::unique_ptr<ExprAST> lhs, std::unique_ptr<ExprAST> rhs)
-        : Op(op), LHS(std::move(lhs)), RHS(std::move(rhs)) {}
-    char getOp() const { return Op; }
-    const ExprAST& getLHS() const { return *LHS; }
-    const ExprAST& getRHS() const { return *RHS; }
+    BinaryExprAST(int op, ExprAST* lhs, ExprAST* rhs) 
+        : Op(op), LHS(lhs), RHS(rhs) {}
+    ~BinaryExprAST() {
+        delete LHS;
+        delete RHS;
+    }
+    void codegen() override {
+        std::cout << "  Binary op: " << Op << "\n";
+        if (LHS) LHS->codegen();
+        if (RHS) RHS->codegen();
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "BinaryExpr: " << Op << "\n";
-        LHS->print(depth + 1);
-        RHS->print(depth + 1);
+        if (LHS) LHS->print(depth + 1);
+        if (RHS) RHS->print(depth + 1);
     }
 };
 
-// Узел для вызова функций
+// Вызов функции
 class CallExprAST : public ExprAST {
     std::string Callee;
-    std::vector<std::unique_ptr<ExprAST>> Args;
+    std::vector<ExprAST*> Args;
 public:
-    CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>> args)
-        : Callee(callee), Args(std::move(args)) {}
-    const std::string& getCallee() const { return Callee; }
-    const std::vector<std::unique_ptr<ExprAST>>& getArgs() const { return Args; }
+    CallExprAST(const std::string& callee, std::vector<ExprAST*> args) 
+        : Callee(callee), Args(args) {}
+    ~CallExprAST() {
+        for (auto* arg : Args) delete arg;
+    }
+    void codegen() override {
+        std::cout << "  Call function: " << Callee << "\n";
+        for (auto* arg : Args) {
+            if (arg) arg->codegen();
+        }
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "CallExpr: " << Callee << "\n";
-        for (const auto& arg : Args) {
+        for (auto* arg : Args) {
             arg->print(depth + 1);
         }
     }
 };
 
-// Узел для объявления переменных
+// Объявление переменной
 class VarDeclAST : public ASTNode {
     std::string Name;
     std::string Type;
-    std::unique_ptr<ExprAST> Init;
+    ExprAST* Init;
 public:
-    VarDeclAST(const std::string& name, const std::string& type, std::unique_ptr<ExprAST> init = nullptr)
-        : Name(name), Type(type), Init(std::move(init)) {}
-    const std::string& getName() const { return Name; }
-    const std::string& getType() const { return Type; }
-    const ExprAST* getInit() const { return Init.get(); }
+    VarDeclAST(const std::string& name, const std::string& type, ExprAST* init = nullptr)
+        : Name(name), Type(type), Init(init) {}
+    ~VarDeclAST() { delete Init; }
+    void codegen() override {
+        std::cout << "Declare variable: " << Name << " : " << Type << "\n";
+        if (Init) Init->codegen();
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "VarDecl: " << Type << " " << Name;
         if (Init) {
             std::cout << " = ";
-            Init->print(depth);
+            Init->print(0);
         }
         std::cout << "\n";
     }
 };
 
-// Узел для присваивания
+// Присваивание
 class AssignExprAST : public ExprAST {
     std::string Name;
-    std::unique_ptr<ExprAST> Value;
+    ExprAST* Value;
 public:
-    AssignExprAST(const std::string& name, std::unique_ptr<ExprAST> value)
-        : Name(name), Value(std::move(value)) {}
-    const std::string& getName() const { return Name; }
-    const ExprAST& getValue() const { return *Value; }
+    AssignExprAST(const std::string& name, ExprAST* value)
+        : Name(name), Value(value) {}
+    ~AssignExprAST() { delete Value; }
+    void codegen() override {
+        std::cout << "Assign to: " << Name << "\n";
+        if (Value) Value->codegen();
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "AssignExpr: " << Name << " =\n";
-        Value->print(depth + 1);
+        if (Value) Value->print(depth + 1);
     }
 };
 
-// Узел для оператора if
+// If оператор
 class IfStmtAST : public ASTNode {
-    std::unique_ptr<ExprAST> Cond;
-    std::unique_ptr<ASTNode> Then Branch, ElseBranch;
+    ExprAST* Cond;
+    ASTNode* Then;
+    ASTNode* Else;
 public:
-    IfStmtAST(std::unique_ptr<ExprAST> cond, std::unique_ptr<ASTNode> thenBr, std::unique_ptr<ASTNode> elseBr = nullptr)
-        : Cond(std::move(cond)), ThenBranch(std::move(thenBr)), ElseBranch(std::move(elseBr)) {}
-    const ExprAST& getCond() const { return *Cond; }
-    const ASTNode* getThenBranch() const { return ThenBranch.get(); }
-    const ASTNode* getElseBranch() const { return ElseBranch.get(); }
+    IfStmtAST(ExprAST* cond, ASTNode* thenStmt, ASTNode* elseStmt = nullptr)
+        : Cond(cond), Then(thenStmt), Else(elseStmt) {}
+    ~IfStmtAST() { delete Cond; delete Then; delete Else; }
+    void codegen() override {
+        std::cout << "If statement\n";
+        std::cout << "  Condition:\n";
+        if (Cond) Cond->codegen();
+        std::cout << "  Then branch:\n";
+        if (Then) Then->codegen();
+        if (Else) {
+            std::cout << "  Else branch:\n";
+            Else->codegen();
+        }
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "IfStmt:\n";
-        Cond->print(depth + 1);
+        if (Cond) Cond->print(depth + 1);
         indent(depth + 1);
         std::cout << "Then:\n";
-        ThenBranch->print(depth + 2);
-        if (ElseBranch) {
+        if (Then) Then->print(depth + 2);
+        if (Else) {
             indent(depth + 1);
             std::cout << "Else:\n";
-            ElseBranch->print(depth + 2);
+            Else->print(depth + 2);
         }
     }
 };
 
-// Узел для цикла while
+// While оператор
 class WhileStmtAST : public ASTNode {
-    std::unique_ptr<ExprAST> Cond;
-    std::unique_ptr<ASTNode> Body;
+    ExprAST* Cond;
+    ASTNode* Body;
 public:
-    WhileStmtAST(std::unique_ptr<ExprAST> cond, std::unique_ptr<ASTNode> body)
-        : Cond(std::move(cond)), Body(std::move(body)) {}
-    const ExprAST& getCond() const { return *Cond; }
-    const ASTNode& getBody() const { return *Body; }
+    WhileStmtAST(ExprAST* cond, ASTNode* body)
+        : Cond(cond), Body(body) {}
+    ~WhileStmtAST() { delete Cond; delete Body; }
+    void codegen() override {
+        std::cout << "While loop\n";
+        std::cout << "  Condition:\n";
+        if (Cond) Cond->codegen();
+        std::cout << "  Body:\n";
+        if (Body) Body->codegen();
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "WhileStmt:\n";
-        Cond->print(depth + 1);
+        if (Cond) Cond->print(depth + 1);
         indent(depth + 1);
         std::cout << "Body:\n";
-        Body->print(depth + 2);
+        if (Body) Body->print(depth + 2);
     }
 };
 
-// Узел для цикла for
+// For оператор
 class ForStmtAST : public ASTNode {
-    std::unique_ptr<VarDeclAST> Init;
-    std::unique_ptr<ExprAST> Cond;
-    std::unique_ptr<ExprAST> Inc;
-    std::unique_ptr<ASTNode> Body;
+    VarDeclAST* Init;
+    ExprAST* Cond;
+    ExprAST* Inc;
+    ASTNode* Body;
 public:
-    ForStmtAST(std::unique_ptr<VarDeclAST> init, std::unique_ptr<ExprAST> cond,
-               std::unique_ptr<ExprAST> inc, std::unique_ptr<ASTNode> body)
-        : Init(std::move(init)), Cond(std::move(cond)), Inc(std::move(inc)), Body(std::move(body)) {}
-    const VarDeclAST* getInit() const { return Init.get(); }
-    const ExprAST& getCond() const { return *Cond; }
-    const ExprAST& getInc() const { return *Inc; }
-    const ASTNode& getBody() const { return *Body; }
+    ForStmtAST(VarDeclAST* init, ExprAST* cond, ExprAST* inc, ASTNode* body)
+        : Init(init), Cond(cond), Inc(inc), Body(body) {}
+    ~ForStmtAST() { delete Init; delete Cond; delete Inc; delete Body; }
+    void codegen() override {
+        std::cout << "For loop\n";
+        if (Init) Init->codegen();
+        std::cout << "  Condition:\n";
+        if (Cond) Cond->codegen();
+        std::cout << "  Increment:\n";
+        if (Inc) Inc->codegen();
+        std::cout << "  Body:\n";
+        if (Body) Body->codegen();
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "ForStmt:\n";
         if (Init) Init->print(depth + 1);
-        indent(depth + 1);
-        std::cout << "Condition:\n";
-        Cond->print(depth + 2);
-        indent(depth + 1);
-        std::cout << "Increment:\n";
-        Inc->print(depth + 2);
-        indent(depth + 1);
-        std::cout << "Body:\n";
-        Body->print(depth + 2);
+        if (Cond) Cond->print(depth + 1);
+        if (Inc) Inc->print(depth + 1);
+        if (Body) Body->print(depth + 1);
     }
 };
 
-// Узел для функции
-class FunctionAST : public ASTNode {
-    std::string Name;
-    std::string ReturnType;
-    std::vector<std::pair<std::string, std::string>> Params; // name, type
-    std::unique_ptr<ASTNode> Body;
-public:
-    FunctionAST(const std::string& name, const std::string& returnType,
-                std::vector<std::pair<std::string, std::string>> params,
-                std::unique_ptr<ASTNode> body)
-        : Name(name), ReturnType(returnType), Params(std::move(params)), Body(std::move(body)) {}
-    const std::string& getName() const { return Name; }
-    const std::string& getReturnType() const { return ReturnType; }
-    const std::vector<std::pair<std::string, std::string>>& getParams() const { return Params; }
-    const ASTNode& getBody() const { return *Body; }
-    void print(int depth = 0) const override {
-        indent(depth);
-        std::cout << "Function: " << ReturnType << " " << Name << "(\n";
-        for (const auto& param : Params) {
-            indent(depth + 1);
-            std::cout << param.second << " " << param.first << "\n";
-        }
-        indent(depth + 1);
-        std::cout << ")\n";
-        Body->print(depth + 1);
-    }
-};
-
-// Узел для оператора return
+// Return оператор
 class ReturnStmtAST : public ASTNode {
-    std::unique_ptr<ExprAST> Value;
+    ExprAST* Value;
 public:
-    ReturnStmtAST(std::unique_ptr<ExprAST> value = nullptr)
-        : Value(std::move(value)) {}
-    const ExprAST* getValue() const { return Value.get(); }
+    ReturnStmtAST(ExprAST* value = nullptr) : Value(value) {}
+    ~ReturnStmtAST() { delete Value; }
+    void codegen() override {
+        std::cout << "Return";
+        if (Value) {
+            std::cout << ":\n";
+            Value->codegen();
+        } else {
+            std::cout << " void\n";
+        }
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "ReturnStmt";
@@ -258,35 +281,78 @@ public:
     }
 };
 
-// Узел для блока операторов
+// Блок операторов
 class BlockStmtAST : public ASTNode {
-    std::vector<std::unique_ptr<ASTNode>> Statements;
+    std::vector<ASTNode*> Statements;
 public:
-    void addStatement(std::unique_ptr<ASTNode> stmt) {
-        Statements.push_back(std::move(stmt));
+    void addStatement(ASTNode* stmt) {
+        Statements.push_back(stmt);
     }
-    const std::vector<std::unique_ptr<ASTNode>>& getStatements() const { return Statements; }
+    ~BlockStmtAST() {
+        for (auto* stmt : Statements) delete stmt;
+    }
+    void codegen() override {
+        for (auto* stmt : Statements) {
+            if (stmt) stmt->codegen();
+        }
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "BlockStmt:\n";
-        for (const auto& stmt : Statements) {
+        for (auto* stmt : Statements) {
             stmt->print(depth + 1);
         }
     }
 };
 
-// Узел для программы (содержит все функции)
-class ProgramAST : public ASTNode {
-    std::vector<std::unique_ptr<FunctionAST>> Functions;
+// Функция
+class FunctionAST : public ASTNode {
+    std::string Name;
+    std::string ReturnType;
+    std::vector<std::pair<std::string, std::string>> Params;
+    ASTNode* Body;
 public:
-    void addFunction(std::unique_ptr<FunctionAST> func) {
-        Functions.push_back(std::move(func));
+    FunctionAST(const std::string& name, const std::string& returnType,
+                std::vector<std::pair<std::string, std::string>> params,
+                ASTNode* body)
+        : Name(name), ReturnType(returnType), Params(params), Body(body) {}
+    ~FunctionAST() { delete Body; }
+    void codegen() override {
+        std::cout << "Function: " << Name << "\n";
+        if (Body) Body->codegen();
     }
-    const std::vector<std::unique_ptr<FunctionAST>>& getFunctions() const { return Functions; }
+    void print(int depth = 0) const override {
+        indent(depth);
+        std::cout << "Function: " << ReturnType << " " << Name << "(\n";
+        for (const auto& p : Params) {
+            indent(depth + 1);
+            std::cout << p.second << " " << p.first << "\n";
+        }
+        indent(depth + 1);
+        std::cout << ")\n";
+        if (Body) Body->print(depth + 1);
+    }
+};
+
+// Программа
+class ProgramAST : public ASTNode {
+    std::vector<FunctionAST*> Functions;
+public:
+    void addFunction(FunctionAST* func) {
+        Functions.push_back(func);
+    }
+    ~ProgramAST() {
+        for (auto* func : Functions) delete func;
+    }
+    void codegen() override {
+        for (auto* func : Functions) {
+            if (func) func->codegen();
+        }
+    }
     void print(int depth = 0) const override {
         indent(depth);
         std::cout << "Program:\n";
-        for (const auto& func : Functions) {
+        for (auto* func : Functions) {
             func->print(depth + 1);
         }
     }
