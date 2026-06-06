@@ -39,7 +39,7 @@ llvm::Function* CodegenLLVM::createFunction(const std::string& name, llvm::Type*
 bool CodegenLLVM::generate(ProgramAST* program, const std::string& outputFile) {
     // Генерируем код для всех функций
     for (const auto& func : program->getFunctions()) {
-        llvm::Function* llvmFunc = generateFunction(const_cast<FunctionAST*>(func.get()));
+        llvm::Function* llvmFunc = generateFunction(func);  // ← func уже указатель
         if (llvmFunc) {
             functions[func->getName()] = llvmFunc;
         }
@@ -48,9 +48,9 @@ bool CodegenLLVM::generate(ProgramAST* program, const std::string& outputFile) {
     // Проверяем на ошибки
     llvm::verifyModule(*module, &llvm::errs());
     
-    // Выводим в файл (исправлено для LLVM 18)
+    // Выводим в файл
     std::error_code ec;
-    llvm::raw_fd_ostream dest(outputFile, ec, llvm::sys::fs::OF_None);
+    llvm::raw_fd_ostream dest(outputFile, ec);
     if (ec) {
         std::cerr << "Error opening output file: " << ec.message() << "\n";
         return false;
@@ -83,7 +83,7 @@ llvm::Function* CodegenLLVM::generateFunction(FunctionAST* func) {
     }
     
     // Генерируем тело функции
-    llvm::Value* bodyResult = generateStatement(const_cast<ASTNode*>(&func->getBody()));
+    llvm::Value* bodyResult = generateStatement(func->getBody());  // ← getBody() возвращает указатель
     
     // Если тело не завершено return-ом, добавляем ret void
     if (func->getReturnType() == "void" && !builder->GetInsertBlock()->getTerminator()) {
@@ -95,14 +95,13 @@ llvm::Function* CodegenLLVM::generateFunction(FunctionAST* func) {
 
 llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
     if (auto* varDecl = dynamic_cast<VarDeclAST*>(stmt)) {
-        // Обработка объявления переменной
         llvm::Type* type = getLLVMType(varDecl->getType());
         llvm::Value* alloc = builder->CreateAlloca(type, nullptr, varDecl->getName());
         
         variables[varDecl->getName()] = alloc;
         
         if (varDecl->getInit()) {
-            llvm::Value* value = generateExpr(const_cast<ExprAST*>(varDecl->getInit()));
+            llvm::Value* value = generateExpr(varDecl->getInit());
             if (value) {
                 builder->CreateStore(value, alloc);
             }
@@ -111,9 +110,8 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
         return alloc;
     }
     else if (auto* assign = dynamic_cast<AssignExprAST*>(stmt)) {
-        // Обработка присваивания
         if (variables.find(assign->getName()) != variables.end()) {
-            llvm::Value* value = generateExpr(const_cast<ExprAST*>(&assign->getValue()));
+            llvm::Value* value = generateExpr(assign->getValue());
             if (value) {
                 builder->CreateStore(value, variables[assign->getName()]);
                 return value;
@@ -142,11 +140,9 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
 
 llvm::Value* CodegenLLVM::generateExpr(ExprAST* expr) {
     if (auto* numExpr = dynamic_cast<NumberExprAST*>(expr)) {
-        // Генерация числовых констант
         return llvm::ConstantInt::get(context, llvm::APInt(32, static_cast<int>(numExpr->getValue())));
     }
     else if (auto* varExpr = dynamic_cast<VariableExprAST*>(expr)) {
-        // Генерация переменных
         if (variables.find(varExpr->getName()) != variables.end()) {
             llvm::Value* ptr = variables[varExpr->getName()];
             return builder->CreateLoad(llvm::Type::getInt32Ty(context), ptr, varExpr->getName());
@@ -164,8 +160,8 @@ llvm::Value* CodegenLLVM::generateExpr(ExprAST* expr) {
 }
 
 llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
-    llvm::Value* lhs = generateExpr(const_cast<ExprAST*>(&expr->getLHS()));
-    llvm::Value* rhs = generateExpr(const_cast<ExprAST*>(&expr->getRHS()));
+    llvm::Value* lhs = generateExpr(expr->getLHS());
+    llvm::Value* rhs = generateExpr(expr->getRHS());
     
     if (!lhs || !rhs) return nullptr;
     
@@ -182,7 +178,7 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
             return builder->CreateICmpSLT(lhs, rhs, "lttmp");
         case '>':
             return builder->CreateICmpSGT(lhs, rhs, "gttmp");
-        case '=': // ==
+        case '=':
             return builder->CreateICmpEQ(lhs, rhs, "eqtmp");
         default:
             std::cerr << "Unknown binary operator: " << expr->getOp() << "\n";
@@ -199,7 +195,7 @@ llvm::Value* CodegenLLVM::generateCall(CallExprAST* call) {
     
     std::vector<llvm::Value*> args;
     for (const auto& arg : call->getArgs()) {
-        llvm::Value* argValue = generateExpr(const_cast<ExprAST*>(arg.get()));
+        llvm::Value* argValue = generateExpr(arg);
         if (!argValue) return nullptr;
         args.push_back(argValue);
     }
@@ -208,10 +204,9 @@ llvm::Value* CodegenLLVM::generateCall(CallExprAST* call) {
 }
 
 llvm::Value* CodegenLLVM::generateIf(IfStmtAST* ifStmt) {
-    llvm::Value* cond = generateExpr(const_cast<ExprAST*>(&ifStmt->getCond()));
+    llvm::Value* cond = generateExpr(ifStmt->getCond());
     if (!cond) return nullptr;
     
-    // Преобразуем условие к bool, если нужно
     if (!cond->getType()->isIntegerTy(1)) {
         cond = builder->CreateICmpNE(cond, builder->getInt32(0), "ifcond");
     }
@@ -224,23 +219,20 @@ llvm::Value* CodegenLLVM::generateIf(IfStmtAST* ifStmt) {
     
     builder->CreateCondBr(cond, thenBB, elseBB);
     
-    // Блок then
     builder->SetInsertPoint(thenBB);
-    llvm::Value* thenResult = generateStatement(const_cast<ASTNode*>(ifStmt->getThenBranch()));
+    generateStatement(ifStmt->getThenBranch());
     if (!builder->GetInsertBlock()->getTerminator()) {
         builder->CreateBr(mergeBB);
     }
     
-    // Блок else
     builder->SetInsertPoint(elseBB);
     if (ifStmt->getElseBranch()) {
-        generateStatement(const_cast<ASTNode*>(ifStmt->getElseBranch()));
+        generateStatement(ifStmt->getElseBranch());
     }
     if (!builder->GetInsertBlock()->getTerminator()) {
         builder->CreateBr(mergeBB);
     }
     
-    // Блок объединения
     builder->SetInsertPoint(mergeBB);
     
     return nullptr;
@@ -253,12 +245,10 @@ llvm::Value* CodegenLLVM::generateWhile(WhileStmtAST* whileStmt) {
     llvm::BasicBlock* loopBodyBB = llvm::BasicBlock::Create(context, "loopbody", func);
     llvm::BasicBlock* loopEndBB = llvm::BasicBlock::Create(context, "loopend", func);
     
-    // Переход к условию
     builder->CreateBr(loopCondBB);
     
-    // Блок условия
     builder->SetInsertPoint(loopCondBB);
-    llvm::Value* cond = generateExpr(const_cast<ExprAST*>(&whileStmt->getCond()));
+    llvm::Value* cond = generateExpr(whileStmt->getCond());
     if (!cond) return nullptr;
     
     if (!cond->getType()->isIntegerTy(1)) {
@@ -267,14 +257,12 @@ llvm::Value* CodegenLLVM::generateWhile(WhileStmtAST* whileStmt) {
     
     builder->CreateCondBr(cond, loopBodyBB, loopEndBB);
     
-    // Блок тела цикла
     builder->SetInsertPoint(loopBodyBB);
-    generateStatement(const_cast<ASTNode*>(&whileStmt->getBody()));
+    generateStatement(whileStmt->getBody());
     if (!builder->GetInsertBlock()->getTerminator()) {
         builder->CreateBr(loopCondBB);
     }
     
-    // Блок после цикла
     builder->SetInsertPoint(loopEndBB);
     
     return nullptr;
@@ -283,9 +271,8 @@ llvm::Value* CodegenLLVM::generateWhile(WhileStmtAST* whileStmt) {
 llvm::Value* CodegenLLVM::generateFor(ForStmtAST* forStmt) {
     llvm::Function* func = builder->GetInsertBlock()->getParent();
     
-    // Инициализация
     if (forStmt->getInit()) {
-        generateStatement(const_cast<VarDeclAST*>(forStmt->getInit()));
+        generateStatement(forStmt->getInit());
     }
     
     llvm::BasicBlock* loopCondBB = llvm::BasicBlock::Create(context, "forcond", func);
@@ -293,12 +280,10 @@ llvm::Value* CodegenLLVM::generateFor(ForStmtAST* forStmt) {
     llvm::BasicBlock* loopIncBB = llvm::BasicBlock::Create(context, "forinc", func);
     llvm::BasicBlock* loopEndBB = llvm::BasicBlock::Create(context, "forend", func);
     
-    // Переход к условию
     builder->CreateBr(loopCondBB);
     
-    // Блок условия
     builder->SetInsertPoint(loopCondBB);
-    llvm::Value* cond = generateExpr(const_cast<ExprAST*>(&forStmt->getCond()));
+    llvm::Value* cond = generateExpr(forStmt->getCond());
     if (!cond) return nullptr;
     
     if (!cond->getType()->isIntegerTy(1)) {
@@ -307,19 +292,16 @@ llvm::Value* CodegenLLVM::generateFor(ForStmtAST* forStmt) {
     
     builder->CreateCondBr(cond, loopBodyBB, loopEndBB);
     
-    // Блок тела цикла
     builder->SetInsertPoint(loopBodyBB);
-    generateStatement(const_cast<ASTNode*>(&forStmt->getBody()));
+    generateStatement(forStmt->getBody());
     if (!builder->GetInsertBlock()->getTerminator()) {
         builder->CreateBr(loopIncBB);
     }
     
-    // Блок инкремента - убрана проверка if, так как getInc() возвращает ссылку
     builder->SetInsertPoint(loopIncBB);
-    generateExpr(const_cast<ExprAST*>(&forStmt->getInc()));
+    generateExpr(forStmt->getInc());
     builder->CreateBr(loopCondBB);
     
-    // Блок после цикла
     builder->SetInsertPoint(loopEndBB);
     
     return nullptr;
@@ -327,7 +309,7 @@ llvm::Value* CodegenLLVM::generateFor(ForStmtAST* forStmt) {
 
 llvm::Value* CodegenLLVM::generateReturn(ReturnStmtAST* returnStmt) {
     if (returnStmt->getValue()) {
-        llvm::Value* value = generateExpr(const_cast<ExprAST*>(returnStmt->getValue()));
+        llvm::Value* value = generateExpr(returnStmt->getValue());
         if (value) {
             return builder->CreateRet(value);
         }
@@ -338,7 +320,7 @@ llvm::Value* CodegenLLVM::generateReturn(ReturnStmtAST* returnStmt) {
 llvm::Value* CodegenLLVM::generateBlock(BlockStmtAST* block) {
     llvm::Value* result = nullptr;
     for (const auto& stmt : block->getStatements()) {
-        result = generateStatement(const_cast<ASTNode*>(stmt.get()));
+        result = generateStatement(stmt);
         if (builder->GetInsertBlock()->getTerminator()) {
             break;
         }
