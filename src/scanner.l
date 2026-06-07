@@ -42,6 +42,7 @@ extern ProgramAST* g_program;
 "int"                   { return KEYWORD_INT; }
 "float"                 { return KEYWORD_FLOAT; }
 "bool"                  { return KEYWORD_BOOL; }
+"char"                  { return KEYWORD_CHAR; }
 "void"                  { return KEYWORD_VOID; }
 "return"                { return KEYWORD_RETURN; }
 "true"                  { yylval.num = 1; return BOOL_LITERAL; }
@@ -89,6 +90,11 @@ extern ProgramAST* g_program;
     str[strlen(yytext) - 2] = '\0';
     yylval.str = str;
     return STRING_LITERAL; 
+}
+
+\'.\'                   { 
+    yylval.num = yytext[1]; 
+    return CHAR_LITERAL; 
 }
 
 [a-zA-Z_][a-zA-Z0-9_]*  { 

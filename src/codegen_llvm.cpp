@@ -17,6 +17,8 @@ llvm::Type* CodegenLLVM::getLLVMType(const std::string& type) {
         return llvm::Type::getFloatTy(context);
     } else if (type == "bool") {
         return llvm::Type::getInt1Ty(context);
+    } else if (type == "char") {
+        return llvm::Type::getInt8Ty(context);
     } else if (type == "void") {
         return llvm::Type::getVoidTy(context);
     }
@@ -102,6 +104,8 @@ llvm::Function* CodegenLLVM::generateFunction(FunctionAST* func) {
             builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(1, 0)));
         } else if (func->getReturnType() == "float") {
             builder->CreateRet(llvm::ConstantFP::get(context, llvm::APFloat(0.0f)));
+        } else if (func->getReturnType() == "char") {
+            builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(8, 0)));
         } else {
             builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
         }
@@ -132,6 +136,10 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
                     value = builder->CreateSIToFP(value, llvm::Type::getFloatTy(context), "inttofloat");
                 } else if (type->isIntegerTy(32) && value->getType()->isFloatTy()) {
                     value = builder->CreateFPToSI(value, llvm::Type::getInt32Ty(context), "floattoint");
+                } else if (type->isIntegerTy(32) && value->getType()->isIntegerTy(8)) {
+                    value = builder->CreateZExt(value, llvm::Type::getInt32Ty(context), "chartoint");
+                } else if (type->isIntegerTy(8) && value->getType()->isIntegerTy(32)) {
+                    value = builder->CreateTrunc(value, llvm::Type::getInt8Ty(context), "inttochar");
                 }
                 builder->CreateStore(value, alloc);
             }
@@ -144,15 +152,17 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
         if (it != variables.end()) {
             llvm::Value* value = generateExpr(assign->getValue());
             if (value) {
-                // Получаем тип переменной из alloca
                 llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(it->second);
                 if (alloca) {
                     llvm::Type* varType = alloca->getAllocatedType();
-                    // Преобразуем тип если нужно
                     if (varType->isIntegerTy(32) && value->getType()->isIntegerTy(1)) {
                         value = builder->CreateZExt(value, llvm::Type::getInt32Ty(context), "booltoint");
                     } else if (varType->isIntegerTy(1) && value->getType()->isIntegerTy(32)) {
                         value = builder->CreateICmpNE(value, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "inttobool");
+                    } else if (varType->isIntegerTy(32) && value->getType()->isIntegerTy(8)) {
+                        value = builder->CreateZExt(value, llvm::Type::getInt32Ty(context), "chartoint");
+                    } else if (varType->isIntegerTy(8) && value->getType()->isIntegerTy(32)) {
+                        value = builder->CreateTrunc(value, llvm::Type::getInt8Ty(context), "inttochar");
                     }
                 }
                 builder->CreateStore(value, it->second);
@@ -194,6 +204,9 @@ llvm::Value* CodegenLLVM::generateExpr(ExprAST* expr) {
     }
     else if (auto* boolExpr = dynamic_cast<BoolExprAST*>(expr)) {
         return llvm::ConstantInt::get(context, llvm::APInt(1, boolExpr->getValue() ? 1 : 0));
+    }
+    else if (auto* charExpr = dynamic_cast<CharExprAST*>(expr)) {
+        return llvm::ConstantInt::get(context, llvm::APInt(8, charExpr->getValue()));
     }
     else if (auto* varExpr = dynamic_cast<VariableExprAST*>(expr)) {
         auto it = variables.find(varExpr->getName());
@@ -266,7 +279,7 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
             default: break;
         }
     } 
-    // Арифметические операции с int
+    // Арифметические операции с int/char
     else {
         switch (op) {
             case 273: return builder->CreateAdd(lhs, rhs, "addtmp");
@@ -298,6 +311,8 @@ llvm::Value* CodegenLLVM::generateCall(CallExprAST* call) {
         if (argValue->getType() != callee->getFunctionType()->getParamType(args.size())) {
             if (argValue->getType()->isIntegerTy(1) && callee->getFunctionType()->getParamType(args.size())->isIntegerTy(32)) {
                 argValue = builder->CreateZExt(argValue, llvm::Type::getInt32Ty(context), "zext");
+            } else if (argValue->getType()->isIntegerTy(8) && callee->getFunctionType()->getParamType(args.size())->isIntegerTy(32)) {
+                argValue = builder->CreateZExt(argValue, llvm::Type::getInt32Ty(context), "chartoint");
             }
         }
         args.push_back(argValue);
@@ -420,6 +435,10 @@ llvm::Value* CodegenLLVM::generateReturn(ReturnStmtAST* returnStmt) {
                 value = builder->CreateICmpNE(value, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "inttobool");
             } else if (currentFunction->getReturnType()->isIntegerTy(32) && value->getType()->isIntegerTy(1)) {
                 value = builder->CreateZExt(value, llvm::Type::getInt32Ty(context), "booltoint");
+            } else if (currentFunction->getReturnType()->isIntegerTy(32) && value->getType()->isIntegerTy(8)) {
+                value = builder->CreateZExt(value, llvm::Type::getInt32Ty(context), "chartoint");
+            } else if (currentFunction->getReturnType()->isIntegerTy(8) && value->getType()->isIntegerTy(32)) {
+                value = builder->CreateTrunc(value, llvm::Type::getInt8Ty(context), "inttochar");
             }
             return builder->CreateRet(value);
         }
@@ -428,6 +447,8 @@ llvm::Value* CodegenLLVM::generateReturn(ReturnStmtAST* returnStmt) {
         return builder->CreateRetVoid();
     } else if (currentFunction->getReturnType()->isIntegerTy(1)) {
         return builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(1, 0)));
+    } else if (currentFunction->getReturnType()->isIntegerTy(8)) {
+        return builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(8, 0)));
     } else {
         return builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
     }

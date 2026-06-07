@@ -57,6 +57,16 @@ public:
     void print(int depth = 0) const override;
 };
 
+// Символьные константы
+class CharExprAST : public ExprAST {
+    char Val;
+public:
+    CharExprAST(char val) : Val(val) {}
+    char getValue() const { return Val; }
+    void codegen() override;
+    void print(int depth = 0) const override;
+};
+
 // Переменные
 class VariableExprAST : public ExprAST {
     std::string Name;

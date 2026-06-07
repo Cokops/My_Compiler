@@ -49,6 +49,15 @@ void BoolExprAST::codegen() {
     std::cout << "  Load bool: " << (Val ? "true" : "false") << "\n";
 }
 
+void CharExprAST::print(int depth) const {
+    indent(depth);
+    std::cout << "CharExpr: '" << Val << "'\n";
+}
+
+void CharExprAST::codegen() {
+    std::cout << "  Load char: '" << Val << "' (" << (int)Val << ")\n";
+}
+
 void VariableExprAST::print(int depth) const {
     indent(depth);
     std::cout << "VariableExpr: " << Name << "\n";

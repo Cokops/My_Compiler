@@ -37,13 +37,13 @@ extern ProgramAST* g_program;
     std::pair<std::string, std::string>* param;
 }
 
-%token <num> INT_LITERAL FLOAT_LITERAL BOOL_LITERAL
+%token <num> INT_LITERAL FLOAT_LITERAL BOOL_LITERAL CHAR_LITERAL
 %token <str> IDENTIFIER STRING_LITERAL
 
 %token EOF_TOKEN 0 "end of file"
 %token ERROR_TOKEN
 %token KEYWORD_IF KEYWORD_ELSE KEYWORD_WHILE KEYWORD_FOR
-%token KEYWORD_INT KEYWORD_FLOAT KEYWORD_BOOL KEYWORD_VOID KEYWORD_RETURN
+%token KEYWORD_INT KEYWORD_FLOAT KEYWORD_BOOL KEYWORD_CHAR KEYWORD_VOID KEYWORD_RETURN
 %token PLUS MINUS MULTIPLY DIVIDE ASSIGN EQ NEQ LT GT LE GE AND OR NOT
 %token LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET SEMICOLON COMMA
 
@@ -59,7 +59,7 @@ extern ProgramAST* g_program;
 %type <func> functionDefinition
 %type <expr> expression assignmentExpr logicalOrExpr logicalAndExpr equalityExpr
 %type <expr> relationalExpr additiveExpr multiplicativeExpr unaryExpr primaryExpr
-%type <expr> functionCall numberExpr stringExpr boolExpr
+%type <expr> functionCall numberExpr stringExpr boolExpr charExpr
 %type <stmt> statement ifStmt whileStmt forStmt returnStmt blockStmt
 %type <varDecl> variableDecl
 %type <paramList> parameterList
@@ -127,6 +127,7 @@ type
     : KEYWORD_INT { $$ = strdup("int"); }
     | KEYWORD_FLOAT { $$ = strdup("float"); }
     | KEYWORD_BOOL { $$ = strdup("bool"); }
+    | KEYWORD_CHAR { $$ = strdup("char"); }
     | KEYWORD_VOID { $$ = strdup("void"); }
     ;
 
@@ -329,6 +330,8 @@ primaryExpr
         { $$ = $1; }
     | boolExpr
         { $$ = $1; }
+    | charExpr
+        { $$ = $1; }
     | stringExpr
         { $$ = $1; }
     | LPAREN expression RPAREN
@@ -347,6 +350,11 @@ numberExpr
 boolExpr
     : BOOL_LITERAL
         { $$ = new BoolExprAST($1 != 0); }
+    ;
+
+charExpr
+    : CHAR_LITERAL
+        { $$ = new CharExprAST((char)$1); }
     ;
 
 stringExpr
