@@ -127,7 +127,6 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
         if (varDecl->getInit()) {
             llvm::Value* value = generateExpr(varDecl->getInit());
             if (value) {
-                // Преобразуем тип если нужно
                 if (type->isIntegerTy(32) && value->getType()->isIntegerTy(1)) {
                     value = builder->CreateZExt(value, llvm::Type::getInt32Ty(context), "booltoint");
                 } else if (type->isIntegerTy(1) && value->getType()->isIntegerTy(32)) {
@@ -235,21 +234,30 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
     
     int op = expr->getOp();
     
-    // Логические операции и сравнения
+    // Арифметические операции
+    if (lhs->getType()->isFloatTy() || rhs->getType()->isFloatTy()) {
+        switch (op) {
+            case 275: return builder->CreateFAdd(lhs, rhs, "addtmpf");   // PLUS
+            case 276: return builder->CreateFSub(lhs, rhs, "subtmpf");   // MINUS
+            case 277: return builder->CreateFMul(lhs, rhs, "multmpf");   // MULTIPLY
+            case 278: return builder->CreateFDiv(lhs, rhs, "divtmpf");   // DIVIDE
+            default: break;
+        }
+    }
+    
+    // Арифметические операции с int/char
     switch (op) {
-        case 278:   // EQ
-            return builder->CreateICmpEQ(lhs, rhs, "eqtmp");
-        case 279:   // NEQ
-            return builder->CreateICmpNE(lhs, rhs, "netmp");
-        case 280:   // LT
-            return builder->CreateICmpSLT(lhs, rhs, "lttmp");
-        case 281:   // GT
-            return builder->CreateICmpSGT(lhs, rhs, "gttmp");
-        case 282:   // LE
-            return builder->CreateICmpSLE(lhs, rhs, "letmp");
-        case 283:   // GE
-            return builder->CreateICmpSGE(lhs, rhs, "getmp");
-        case 284:   // AND (&&)
+        case 275: return builder->CreateAdd(lhs, rhs, "addtmp");   // PLUS
+        case 276: return builder->CreateSub(lhs, rhs, "subtmp");   // MINUS
+        case 277: return builder->CreateMul(lhs, rhs, "multmp");   // MULTIPLY
+        case 278: return builder->CreateSDiv(lhs, rhs, "divtmp");  // DIVIDE
+        case 280: return builder->CreateICmpEQ(lhs, rhs, "eqtmp");  // EQ
+        case 281: return builder->CreateICmpNE(lhs, rhs, "netmp");  // NEQ
+        case 282: return builder->CreateICmpSLT(lhs, rhs, "lttmp"); // LT
+        case 283: return builder->CreateICmpSGT(lhs, rhs, "gttmp"); // GT
+        case 284: return builder->CreateICmpSLE(lhs, rhs, "letmp"); // LE
+        case 285: return builder->CreateICmpSGE(lhs, rhs, "getmp"); // GE
+        case 286:   // AND (&&)
             if (!lhs->getType()->isIntegerTy(1)) {
                 lhs = builder->CreateICmpNE(lhs, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "lhsbool");
             }
@@ -257,7 +265,7 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
                 rhs = builder->CreateICmpNE(rhs, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "rhsbool");
             }
             return builder->CreateAnd(lhs, rhs, "andtmp");
-        case 285:   // OR (||)
+        case 287:   // OR (||)
             if (!lhs->getType()->isIntegerTy(1)) {
                 lhs = builder->CreateICmpNE(lhs, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "lhsbool");
             }
@@ -266,32 +274,9 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
             }
             return builder->CreateOr(lhs, rhs, "ortmp");
         default:
-            break;
+            std::cerr << "Unknown binary operator: " << op << "\n";
+            return nullptr;
     }
-    
-    // Арифметические операции с float
-    if (lhs->getType()->isFloatTy() || rhs->getType()->isFloatTy()) {
-        switch (op) {
-            case 273: return builder->CreateFAdd(lhs, rhs, "addtmpf");
-            case 274: return builder->CreateFSub(lhs, rhs, "subtmpf");
-            case 275: return builder->CreateFMul(lhs, rhs, "multmpf");
-            case 276: return builder->CreateFDiv(lhs, rhs, "divtmpf");
-            default: break;
-        }
-    } 
-    // Арифметические операции с int/char
-    else {
-        switch (op) {
-            case 273: return builder->CreateAdd(lhs, rhs, "addtmp");
-            case 274: return builder->CreateSub(lhs, rhs, "subtmp");
-            case 275: return builder->CreateMul(lhs, rhs, "multmp");
-            case 276: return builder->CreateSDiv(lhs, rhs, "divtmp");
-            default: break;
-        }
-    }
-    
-    std::cerr << "Unknown binary operator: " << op << "\n";
-    return nullptr;
 }
 
 llvm::Value* CodegenLLVM::generateCall(CallExprAST* call) {
