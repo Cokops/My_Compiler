@@ -38,18 +38,19 @@ FLEX_TARGET(MyLexer
 # Зависимости
 add_flex_bison_dependency(MyLexer MyParser)
 
-# Исходные файлы
+# Исходные файлы (с учётом новой структуры)
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen_llvm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast/ast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/codegen_llvm.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/lexer.cpp
 )
 
 # Заголовочные файлы
 set(HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast/ast.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/codegen_llvm.h
     ${CMAKE_CURRENT_BINARY_DIR}/parser.hpp
 )
 
@@ -59,6 +60,8 @@ add_executable(my_compiler ${SOURCES} ${HEADERS})
 # Включаем директории для заголовков
 target_include_directories(my_compiler PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ast
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 

@@ -1,7 +1,7 @@
 #ifndef CODEGEN_LLVM_H
 #define CODEGEN_LLVM_H
 
-#include "ast.h"
+#include "ast/ast.h"
 #include <memory>
 #include <string>
 #include <map>
