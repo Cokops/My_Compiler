@@ -23,25 +23,27 @@ llvm::Type* CodegenLLVM::getLLVMType(const std::string& type) {
     return llvm::Type::getInt32Ty(context);
 }
 
-llvm::Function* CodegenLLVM::createFunction(const std::string& name, llvm::Type* returnType,
-                                            const std::vector<std::pair<std::string, std::string>>& params) {
+llvm::FunctionType* CodegenLLVM::getFunctionType(FunctionAST* func) {
     std::vector<llvm::Type*> paramTypes;
-    for (const auto& param : params) {
+    for (const auto& param : func->getParams()) {
         paramTypes.push_back(getLLVMType(param.second));
     }
-    
-    llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, false);
-    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, module.get());
-    
-    return func;
+    llvm::Type* returnType = getLLVMType(func->getReturnType());
+    return llvm::FunctionType::get(returnType, paramTypes, false);
 }
 
 bool CodegenLLVM::generate(ProgramAST* program, const std::string& outputFile) {
+    // Сначала создаем объявления ВСЕХ функций
     for (const auto& func : program->getFunctions()) {
-        llvm::Function* llvmFunc = generateFunction(func);
-        if (llvmFunc) {
-            functions[func->getName()] = llvmFunc;
-        }
+        llvm::FunctionType* funcType = getFunctionType(func);
+        llvm::Function* llvmFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, func->getName(), module.get());
+        functions[func->getName()] = llvmFunc;
+        std::cout << "Created function: " << func->getName() << std::endl;
+    }
+    
+    // Затем генерируем тела функций
+    for (const auto& func : program->getFunctions()) {
+        generateFunction(func);
     }
     
     if (llvm::verifyModule(*module, &llvm::errs())) {
@@ -63,33 +65,51 @@ bool CodegenLLVM::generate(ProgramAST* program, const std::string& outputFile) {
 }
 
 llvm::Function* CodegenLLVM::generateFunction(FunctionAST* func) {
-    llvm::Type* returnType = getLLVMType(func->getReturnType());
-    llvm::Function* llvmFunc = createFunction(func->getName(), returnType, func->getParams());
+    std::cout << "Generating body for: " << func->getName() << std::endl;
     
-    if (!llvmFunc) return nullptr;
+    auto it = functions.find(func->getName());
+    if (it == functions.end()) {
+        std::cerr << "Error: Function '" << func->getName() << "' not found\n";
+        return nullptr;
+    }
     
+    llvm::Function* llvmFunc = it->second;
+    
+    // Создаем базовый блок
     llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(context, "entry", llvmFunc);
     builder->SetInsertPoint(entryBlock);
     
     currentFunction = llvmFunc;
     
+    // ОЧИЩАЕМ переменные для этой функции
+    variables.clear();
+    
+    // Регистрируем параметры функции в таблицу переменных
     size_t paramIndex = 0;
     for (auto& arg : llvmFunc->args()) {
         const std::string& paramName = func->getParams()[paramIndex].first;
+        const std::string& paramType = func->getParams()[paramIndex].second;
         arg.setName(paramName);
         
-        llvm::AllocaInst* alloca = builder->CreateAlloca(getLLVMType(func->getParams()[paramIndex].second), nullptr, paramName);
+        // Создаем alloca для параметра
+        llvm::AllocaInst* alloca = builder->CreateAlloca(getLLVMType(paramType), nullptr, paramName);
         builder->CreateStore(&arg, alloca);
         variables[paramName] = alloca;
+        
+        std::cout << "  Parameter: " << paramName << " stored in alloca" << std::endl;
         paramIndex++;
     }
     
+    // Генерируем тело функции
     generateStatement(func->getBody());
     
-    if (func->getReturnType() == "void" && !builder->GetInsertBlock()->getTerminator()) {
-        builder->CreateRetVoid();
-    } else if (!builder->GetInsertBlock()->getTerminator()) {
-        builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
+    // Добавляем return если нужно
+    if (!builder->GetInsertBlock()->getTerminator()) {
+        if (func->getReturnType() == "void") {
+            builder->CreateRetVoid();
+        } else {
+            builder->CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
+        }
     }
     
     return llvmFunc;
@@ -103,6 +123,7 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
         llvm::AllocaInst* alloc = builder->CreateAlloca(type, nullptr, varDecl->getName());
         
         variables[varDecl->getName()] = alloc;
+        std::cout << "  Variable declared: " << varDecl->getName() << std::endl;
         
         if (varDecl->getInit()) {
             llvm::Value* value = generateExpr(varDecl->getInit());
@@ -121,6 +142,8 @@ llvm::Value* CodegenLLVM::generateStatement(ASTNode* stmt) {
                 builder->CreateStore(value, it->second);
                 return value;
             }
+        } else {
+            std::cerr << "Error: Variable '" << assign->getName() << "' not declared" << std::endl;
         }
         return nullptr;
     }
@@ -152,8 +175,11 @@ llvm::Value* CodegenLLVM::generateExpr(ExprAST* expr) {
     else if (auto* varExpr = dynamic_cast<VariableExprAST*>(expr)) {
         auto it = variables.find(varExpr->getName());
         if (it != variables.end()) {
-            return builder->CreateLoad(getLLVMType("int"), it->second, varExpr->getName());
+            // Загружаем значение из alloca
+            llvm::AllocaInst* alloca = (llvm::AllocaInst*)it->second;
+            return builder->CreateLoad(alloca->getAllocatedType(), alloca, varExpr->getName());
         }
+        std::cerr << "Error: Variable '" << varExpr->getName() << "' not found in variables table" << std::endl;
         return nullptr;
     }
     else if (auto* binExpr = dynamic_cast<BinaryExprAST*>(expr)) {
@@ -175,19 +201,19 @@ llvm::Value* CodegenLLVM::generateBinaryExpr(BinaryExprAST* expr) {
     int op = expr->getOp();
     
     switch (op) {
-        case 272: return builder->CreateAdd(lhs, rhs, "addtmp");      // PLUS
-        case 273: return builder->CreateSub(lhs, rhs, "subtmp");      // MINUS
-        case 274: return builder->CreateMul(lhs, rhs, "multmp");      // MULTIPLY
-        case 275: return builder->CreateSDiv(lhs, rhs, "divtmp");     // DIVIDE
-        case 276: return builder->CreateICmpEQ(lhs, rhs, "eqtmp");    // ASSIGN? EQ должен быть 277
-        case 277: return builder->CreateICmpEQ(lhs, rhs, "eqtmp");    // EQ
-        case 278: return builder->CreateICmpNE(lhs, rhs, "netmp");    // NEQ
-        case 279: return builder->CreateICmpSLT(lhs, rhs, "lttmp");   // LT (<)
-        case 280: return builder->CreateICmpSGT(lhs, rhs, "gttmp");   // GT (>) - ИСПРАВЛЕНО
-        case 281: return builder->CreateICmpSLE(lhs, rhs, "letmp");   // LE (<=)
-        case 282: return builder->CreateICmpSGE(lhs, rhs, "getmp");   // GE (>=)
-        case 283: return builder->CreateAnd(lhs, rhs, "andtmp");      // AND
-        case 284: return builder->CreateOr(lhs, rhs, "ortmp");        // OR
+        case 272: return builder->CreateAdd(lhs, rhs, "addtmp");
+        case 273: return builder->CreateSub(lhs, rhs, "subtmp");
+        case 274: return builder->CreateMul(lhs, rhs, "multmp");
+        case 275: return builder->CreateSDiv(lhs, rhs, "divtmp");
+        case 276: 
+        case 277: return builder->CreateICmpEQ(lhs, rhs, "eqtmp");
+        case 278: return builder->CreateICmpNE(lhs, rhs, "netmp");
+        case 279: return builder->CreateICmpSLT(lhs, rhs, "lttmp");
+        case 280: return builder->CreateICmpSGT(lhs, rhs, "gttmp");
+        case 281: return builder->CreateICmpSLE(lhs, rhs, "letmp");
+        case 282: return builder->CreateICmpSGE(lhs, rhs, "getmp");
+        case 283: return builder->CreateAnd(lhs, rhs, "andtmp");
+        case 284: return builder->CreateOr(lhs, rhs, "ortmp");
         default:
             std::cerr << "Unknown binary operator: " << op << "\n";
             return nullptr;
@@ -217,8 +243,6 @@ llvm::Value* CodegenLLVM::generateIf(IfStmtAST* ifStmt) {
     llvm::Value* cond = generateExpr(ifStmt->getCond());
     if (!cond) return nullptr;
     
-    // Для операторов сравнения cond уже i1, не нужно преобразовывать
-    // Если cond i32, преобразуем в i1
     if (cond->getType()->isIntegerTy(32)) {
         cond = builder->CreateICmpNE(cond, llvm::ConstantInt::get(context, llvm::APInt(32, 0)), "ifcond");
     }
@@ -325,9 +349,11 @@ llvm::Value* CodegenLLVM::generateReturn(ReturnStmtAST* returnStmt) {
     if (returnStmt->getValue()) {
         llvm::Value* value = generateExpr(returnStmt->getValue());
         if (value) {
+            std::cout << "Returning value" << std::endl;
             return builder->CreateRet(value);
         }
     }
+    std::cout << "Returning void" << std::endl;
     return builder->CreateRetVoid();
 }
 

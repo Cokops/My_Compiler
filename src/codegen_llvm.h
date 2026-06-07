@@ -18,23 +18,6 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Type.h"
 
-// Токены операторов (должны совпадать с parser.y)
-namespace Tokens {
-    const int PLUS = 274;
-    const int MINUS = 275;
-    const int MULTIPLY = 276;
-    const int DIVIDE = 277;
-    const int EQ = 278;
-    const int NEQ = 279;
-    const int LT = 280;
-    const int GT = 281;
-    const int LE = 282;
-    const int GE = 283;
-    const int AND = 284;
-    const int OR = 285;
-    const int NOT = 286;
-}
-
 // Класс генератора кода LLVM
 class CodegenLLVM {
 public:
@@ -43,15 +26,6 @@ public:
     
     // Сгенерировать код для программы
     bool generate(ProgramAST* program, const std::string& outputFile);
-    
-    // Сгенерировать код для функции
-    llvm::Function* generateFunction(FunctionAST* func);
-    
-    // Сгенерировать код для оператора
-    llvm::Value* generateStatement(ASTNode* stmt);
-    
-    // Сгенерировать код для выражения
-    llvm::Value* generateExpr(ExprAST* expr);
     
 private:
     llvm::LLVMContext context;
@@ -65,14 +39,26 @@ private:
     std::map<std::string, llvm::Value*> variables;
     
     // Текущая функция
-    llvm::Function* currentFunction;
+    llvm::Function* currentFunction = nullptr;
     
     // Генерировать тип LLVM по имени типа
     llvm::Type* getLLVMType(const std::string& type);
     
+    // Получить тип функции
+    llvm::FunctionType* getFunctionType(FunctionAST* func);
+    
     // Создать новую функцию
     llvm::Function* createFunction(const std::string& name, llvm::Type* returnType,
                                    const std::vector<std::pair<std::string, std::string>>& params);
+    
+    // Сгенерировать код для функции
+    llvm::Function* generateFunction(FunctionAST* func);
+    
+    // Сгенерировать код для оператора
+    llvm::Value* generateStatement(ASTNode* stmt);
+    
+    // Сгенерировать код для выражения
+    llvm::Value* generateExpr(ExprAST* expr);
     
     // Генерировать бинарную операцию
     llvm::Value* generateBinaryExpr(BinaryExprAST* expr);

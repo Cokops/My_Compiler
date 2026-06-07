@@ -151,15 +151,15 @@ public:
 
 // For оператор
 class ForStmtAST : public ASTNode {
-    VarDeclAST* Init;
+    ASTNode* Init;  // может быть VarDeclAST* или ExprAST* или nullptr
     ExprAST* Cond;
     ExprAST* Inc;
     ASTNode* Body;
 public:
-    ForStmtAST(VarDeclAST* init, ExprAST* cond, ExprAST* inc, ASTNode* body)
+    ForStmtAST(ASTNode* init, ExprAST* cond, ExprAST* inc, ASTNode* body)
         : Init(init), Cond(cond), Inc(inc), Body(body) {}
     ~ForStmtAST() { delete Init; delete Cond; delete Inc; delete Body; }
-    VarDeclAST* getInit() const { return Init; }
+    ASTNode* getInit() const { return Init; }
     ExprAST* getCond() const { return Cond; }
     ExprAST* getInc() const { return Inc; }
     ASTNode* getBody() const { return Body; }

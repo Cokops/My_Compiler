@@ -1,22 +1,16 @@
-int main() {
-    int a = 50;
-    int b = 30;
-    int c = 40;
-    int max;
-    
-    if (a > b) {
-        if (a > c) {
-            max = a;
-        } else {
-            max = c;
-        }
-    } else {
-        if (b > c) {
-            max = b;
-        } else {
-            max = c;
-        }
+int power(int base, int exp) {
+    int result = 1;
+    int i = 0;
+    while (i < exp) {
+        result = result * base;
+        i = i + 1;
     }
-    return max;
+    return result;
 }
-// Ожидаемый результат: 50
+
+int main() {
+    int base = 2;
+    int exp = 5;
+    return power(base, exp);
+}
+// Результат: 32

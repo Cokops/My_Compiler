@@ -118,9 +118,10 @@ parameterList
 parameter
     : type IDENTIFIER
         { 
+            // ИСПРАВЛЕНО: pair<имя, тип> (было pair<тип, имя>)
             $$ = new std::pair<std::string, std::string>(
-                std::string(($1 != nullptr) ? $1 : "int"),
-                std::string($2)
+                std::string($2),  // имя переменной
+                std::string(($1 != nullptr) ? $1 : "int")  // тип
             );
             if ($1) free($1);
             if ($2) free($2);
@@ -235,9 +236,15 @@ forStmt
         { 
             $$ = new ForStmtAST($3, $5, $7, $9); 
         }
+    | KEYWORD_FOR LPAREN SEMICOLON expression SEMICOLON expression RPAREN statement
+        { 
+            $$ = new ForStmtAST(nullptr, $4, $6, $8); 
+        }
     | KEYWORD_FOR LPAREN expression SEMICOLON expression SEMICOLON expression RPAREN statement
         { 
-            $$ = new ForStmtAST(nullptr, $5, $7, $9); 
+            // ИСПРАВЛЕНО: создаем временную переменную для инициализации
+            // Можно передать nullptr, так как инициализация - это выражение
+            $$ = new ForStmtAST(nullptr, $5, $7, $9);
         }
     ;
 
