@@ -42,7 +42,6 @@ add_flex_bison_dependency(MyLexer MyParser)
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ast.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/semantic_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen_llvm.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/lexer.cpp
