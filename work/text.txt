@@ -1,7 +1,12 @@
 int main() {
-    int sum = 0;
-    for (int i = 0; i <= 10; i = i + 1) {
-        sum = sum + i;
+    int x = 10;
+    int y = 20;
+    int z = 5;
+    bool cond = (x > 0) && (y < 30) || (z == 5);
+    if (cond) {
+        return x + y;
+    } else {
+        return z;
     }
-    return sum;
 }
+// Ожидаемый результат: 30

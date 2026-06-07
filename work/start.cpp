@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <string>
 #include <windows.h>
+#include <cstring>
 
 std::string getExePath() {
     char buffer[MAX_PATH];
@@ -12,50 +13,53 @@ std::string getExePath() {
 }
 
 int main() {
-    // Получаем путь к папке, где находится start.exe (папка work)
     std::string exeDir = getExePath();
-    
-    // Путь к папке Release
     std::string releaseDir = exeDir + "\\..\\build\\Release";
-    
     std::string testFile = exeDir + "\\text.txt";
     
-    system("echo ========================================");
-    system("echo        MY COMPILER RUNNER");
-    system("echo ========================================");
-    system("echo.");
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "       MY COMPILER RUNNER" << std::endl;
+    std::cout << "========================================\n" << std::endl;
     
-    // 1. Компиляция - копируем test.txt в папку Release
-    system("echo [1] COMPILING...");
+    std::cout << "[1] COMPILING..." << std::endl;
     std::string copyCmd = "copy \"" + testFile + "\" \"" + releaseDir + "\\text.txt\" > nul";
     system(copyCmd.c_str());
     
-    std::string compileCmd = "cd /d \"" + releaseDir + "\" && my_compiler.exe text.txt";  // ← ИСПРАВЛЕНО: test.txt
+    std::string compileCmd = "cd /d \"" + releaseDir + "\" && my_compiler.exe text.txt";
     system(compileCmd.c_str());
-    system("echo.");
+    std::cout << std::endl;
     
-    // 2. Показ LLVM IR
-    system("echo [2] LLVM IR CODE:");
-    system("echo ----------------------------------------");
+    std::cout << "[2] LLVM IR CODE:" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
     std::string typeCmd = "type \"" + releaseDir + "\\output.ll\"";
     system(typeCmd.c_str());
-    system("echo ----------------------------------------");
-    system("echo.");
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
     
-    // 3. Запуск
-    system("echo [3] EXECUTING...");
+    std::cout << "[3] EXECUTING..." << std::endl;
     std::string lliCmd = "cd /d \"" + releaseDir + "\" && lli output.ll";
     int result = system(lliCmd.c_str());
-    system("echo.");
+    std::cout << std::endl;
     
-    // 4. Результат
-    system("echo [4] RESULT:");
-    std::cout << "Program returned: " << result << std::endl;
+    std::cout << "[4] RESULT:" << std::endl;
     
-    system("echo.");
-    system("echo ========================================");
-    system("echo            DONE!");
-    system("echo ========================================");
+    int exitCode = result;
+    
+    std::string checkFloatCmd = "findstr \"float main\" \"" + releaseDir + "\\text.txt\" > nul";
+    int isFloat = system(checkFloatCmd.c_str());
+    
+    if (isFloat == 0) {
+        float floatValue;
+        memcpy(&floatValue, &exitCode, sizeof(float));
+        std::cout << "Raw int: " << exitCode << std::endl;
+    } else {
+        std::cout << "Program returned: " << exitCode << std::endl;
+    }
+    
+    std::cout << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "            DONE!" << std::endl;
+    std::cout << "========================================" << std::endl;
     system("pause");
     
     return 0;

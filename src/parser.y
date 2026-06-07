@@ -7,7 +7,6 @@
 #include <cstdlib>
 #include "ast.h"
 
-// Windows compatibility
 #ifdef _WIN32
 #include <string.h>
 inline char* strdup(const char* s) {
@@ -38,7 +37,6 @@ extern ProgramAST* g_program;
     std::pair<std::string, std::string>* param;
 }
 
-// Токены с типами
 %token <num> INT_LITERAL FLOAT_LITERAL BOOL_LITERAL
 %token <str> IDENTIFIER STRING_LITERAL
 
@@ -49,7 +47,6 @@ extern ProgramAST* g_program;
 %token PLUS MINUS MULTIPLY DIVIDE ASSIGN EQ NEQ LT GT LE GE AND OR NOT
 %token LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET SEMICOLON COMMA
 
-// Приоритеты операторов
 %right ASSIGN
 %left OR
 %left AND
@@ -59,7 +56,6 @@ extern ProgramAST* g_program;
 %left MULTIPLY DIVIDE
 %right NOT
 
-// Типы для правил грамматики
 %type <func> functionDefinition
 %type <expr> expression assignmentExpr logicalOrExpr logicalAndExpr equalityExpr
 %type <expr> relationalExpr additiveExpr multiplicativeExpr unaryExpr primaryExpr
@@ -234,14 +230,6 @@ forStmt
     : KEYWORD_FOR LPAREN variableDecl SEMICOLON expression SEMICOLON expression RPAREN statement
         { 
             $$ = new ForStmtAST($3, $5, $7, $9); 
-        }
-    | KEYWORD_FOR LPAREN SEMICOLON expression SEMICOLON expression RPAREN statement
-        { 
-            $$ = new ForStmtAST(nullptr, $4, $6, $8); 
-        }
-    | KEYWORD_FOR LPAREN expression SEMICOLON expression SEMICOLON expression RPAREN statement
-        { 
-            $$ = new ForStmtAST(nullptr, $5, $7, $9);
         }
     ;
 
