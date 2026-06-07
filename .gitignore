@@ -7,7 +7,9 @@ build/
 my_compiler
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/c_cpp_properties.json
 .idea/
 *.swp
 *.swo
@@ -33,3 +35,6 @@ cmake_install.cmake
 
 # Logs
 *.log
+
+# Work
+!work/compiler.exe

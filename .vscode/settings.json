@@ -1,0 +1,33 @@
+{
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/include",
+        "C:/Program Files/LLVM/include",
+        "C:/win_flex_bison/include"
+    ],
+    "C_Cpp.default.defines": [
+        "_WIN32",
+        "_WIN64",
+        "_CRT_SECURE_NO_WARNINGS",
+        "_CRT_NONSTDC_NO_DEPRECATE",
+        "_CRT_NONSTDC_NO_WARNINGS",
+        "_USE_MATH_DEFINES",
+        "__STDC_CONSTANT_MACROS",
+        "__STDC_FORMAT_MACROS",
+        "__STDC_LIMIT_MACROS"
+    ],
+    "C_Cpp.default.compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.41.34120/bin/Hostx64/x64/cl.exe",
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+    "C_Cpp.errorSquiggles": "disabled",
+    "files.associations": {
+        "*.l": "flex",
+        "*.y": "bison",
+        "*.ll": "llvm",
+        "*.cpp": "cpp",
+        "*.h": "cpp"
+    },
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.intelliSenseEngineFallback": "disabled"
+}
