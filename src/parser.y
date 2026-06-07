@@ -39,7 +39,7 @@ extern ProgramAST* g_program;
 }
 
 // Токены с типами
-%token <num> INT_LITERAL FLOAT_LITERAL
+%token <num> INT_LITERAL FLOAT_LITERAL BOOL_LITERAL
 %token <str> IDENTIFIER STRING_LITERAL
 
 %token EOF_TOKEN 0 "end of file"
@@ -63,7 +63,7 @@ extern ProgramAST* g_program;
 %type <func> functionDefinition
 %type <expr> expression assignmentExpr logicalOrExpr logicalAndExpr equalityExpr
 %type <expr> relationalExpr additiveExpr multiplicativeExpr unaryExpr primaryExpr
-%type <expr> functionCall numberExpr stringExpr
+%type <expr> functionCall numberExpr stringExpr boolExpr
 %type <stmt> statement ifStmt whileStmt forStmt returnStmt blockStmt
 %type <varDecl> variableDecl
 %type <paramList> parameterList
@@ -118,10 +118,9 @@ parameterList
 parameter
     : type IDENTIFIER
         { 
-            // ИСПРАВЛЕНО: pair<имя, тип> (было pair<тип, имя>)
             $$ = new std::pair<std::string, std::string>(
-                std::string($2),  // имя переменной
-                std::string(($1 != nullptr) ? $1 : "int")  // тип
+                std::string($2),
+                std::string(($1 != nullptr) ? $1 : "int")
             );
             if ($1) free($1);
             if ($2) free($2);
@@ -242,8 +241,6 @@ forStmt
         }
     | KEYWORD_FOR LPAREN expression SEMICOLON expression SEMICOLON expression RPAREN statement
         { 
-            // ИСПРАВЛЕНО: создаем временную переменную для инициализации
-            // Можно передать nullptr, так как инициализация - это выражение
             $$ = new ForStmtAST(nullptr, $5, $7, $9);
         }
     ;
@@ -342,6 +339,8 @@ primaryExpr
         }
     | numberExpr
         { $$ = $1; }
+    | boolExpr
+        { $$ = $1; }
     | stringExpr
         { $$ = $1; }
     | LPAREN expression RPAREN
@@ -354,7 +353,12 @@ numberExpr
     : INT_LITERAL
         { $$ = new NumberExprAST($1); }
     | FLOAT_LITERAL
-        { $$ = new NumberExprAST($1); }
+        { $$ = new NumberExprAST($1, true); }
+    ;
+
+boolExpr
+    : BOOL_LITERAL
+        { $$ = new BoolExprAST($1 != 0); }
     ;
 
 stringExpr

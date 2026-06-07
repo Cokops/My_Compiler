@@ -4,36 +4,33 @@
 #include <map>
 #include <iostream>
 
-// Вспомогательная функция для вывода отступов
 static void indent(int depth) {
-    for (int i = 0; i < depth; ++i) {
-        std::cout << "  ";
-    }
+    for (int i = 0; i < depth; ++i) std::cout << "  ";
 }
 
-// Реализация базовых методов AST
 void ASTNode::print(int depth) const {
     indent(depth);
     std::cout << "ASTNode\n";
 }
 
-// Реализация методов ExprAST
 void ExprAST::print(int depth) const {
     indent(depth);
     std::cout << "ExprAST\n";
 }
 
-// Реализация методов NumberExprAST
 void NumberExprAST::print(int depth) const {
     indent(depth);
-    std::cout << "NumberExpr: " << Val << "\n";
+    if (isFloat) {
+        std::cout << "FloatExpr: " << Val << "\n";
+    } else {
+        std::cout << "NumberExpr: " << (int)Val << "\n";
+    }
 }
 
 void NumberExprAST::codegen() {
-    std::cout << "  Load number: " << Val << "\n";
+    std::cout << "  Load number: " << Val << (isFloat ? " (float)" : " (int)") << "\n";
 }
 
-// Реализация методов StringExprAST
 void StringExprAST::print(int depth) const {
     indent(depth);
     std::cout << "StringExpr: \"" << Val << "\"\n";
@@ -43,7 +40,15 @@ void StringExprAST::codegen() {
     std::cout << "  Load string: \"" << Val << "\"\n";
 }
 
-// Реализация методов VariableExprAST
+void BoolExprAST::print(int depth) const {
+    indent(depth);
+    std::cout << "BoolExpr: " << (Val ? "true" : "false") << "\n";
+}
+
+void BoolExprAST::codegen() {
+    std::cout << "  Load bool: " << (Val ? "true" : "false") << "\n";
+}
+
 void VariableExprAST::print(int depth) const {
     indent(depth);
     std::cout << "VariableExpr: " << Name << "\n";
@@ -53,7 +58,6 @@ void VariableExprAST::codegen() {
     std::cout << "  Load variable: " << Name << "\n";
 }
 
-// Реализация методов BinaryExprAST
 void BinaryExprAST::print(int depth) const {
     indent(depth);
     std::cout << "BinaryExpr: " << Op << "\n";
@@ -67,7 +71,6 @@ void BinaryExprAST::codegen() {
     if (RHS) RHS->codegen();
 }
 
-// Реализация методов CallExprAST
 void CallExprAST::print(int depth) const {
     indent(depth);
     std::cout << "CallExpr: " << Callee << "\n";
@@ -83,7 +86,6 @@ void CallExprAST::codegen() {
     }
 }
 
-// Реализация методов VarDeclAST
 void VarDeclAST::print(int depth) const {
     indent(depth);
     std::cout << "VarDecl: " << Type << " " << Name;
@@ -100,7 +102,6 @@ void VarDeclAST::codegen() {
     if (Init) Init->codegen();
 }
 
-// Реализация методов AssignExprAST
 void AssignExprAST::print(int depth) const {
     indent(depth);
     std::cout << "AssignExpr: " << Name << " =\n";
@@ -112,7 +113,6 @@ void AssignExprAST::codegen() {
     if (Value) Value->codegen();
 }
 
-// Реализация методов IfStmtAST
 void IfStmtAST::print(int depth) const {
     indent(depth);
     std::cout << "IfStmt:\n";
@@ -139,7 +139,6 @@ void IfStmtAST::codegen() {
     }
 }
 
-// Реализация методов WhileStmtAST
 void WhileStmtAST::print(int depth) const {
     indent(depth);
     std::cout << "WhileStmt:\n";
@@ -157,7 +156,6 @@ void WhileStmtAST::codegen() {
     if (Body) Body->codegen();
 }
 
-// Реализация методов ForStmtAST
 void ForStmtAST::print(int depth) const {
     indent(depth);
     std::cout << "ForStmt:\n";
@@ -184,7 +182,6 @@ void ForStmtAST::codegen() {
     if (Body) Body->codegen();
 }
 
-// Реализация методов ReturnStmtAST
 void ReturnStmtAST::print(int depth) const {
     indent(depth);
     std::cout << "ReturnStmt";
@@ -206,7 +203,6 @@ void ReturnStmtAST::codegen() {
     }
 }
 
-// Реализация методов BlockStmtAST
 void BlockStmtAST::print(int depth) const {
     indent(depth);
     std::cout << "BlockStmt:\n";
@@ -221,7 +217,6 @@ void BlockStmtAST::codegen() {
     }
 }
 
-// Реализация методов FunctionAST
 void FunctionAST::print(int depth) const {
     indent(depth);
     std::cout << "Function: " << ReturnType << " " << Name << "(\n";
@@ -239,7 +234,6 @@ void FunctionAST::codegen() {
     if (Body) Body->codegen();
 }
 
-// Реализация методов ProgramAST
 void ProgramAST::print(int depth) const {
     indent(depth);
     std::cout << "Program:\n";

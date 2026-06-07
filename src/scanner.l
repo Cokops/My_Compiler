@@ -1,5 +1,5 @@
 %{
-// Windows compatibility - ДОЛЖНО БЫТЬ ПЕРВЫМ
+// Windows compatibility
 #ifdef _WIN32
 #define _CRT_NONSTDC_NO_DEPRECATE
 #include <string.h>
@@ -27,9 +27,6 @@ inline char* strdup(const char* s) {
 #include "parser.hpp"
 
 extern ProgramAST* g_program;
-
-// Для отслеживания позиции
-int yycolumn = 1;
 %}
 
 %option noyywrap
@@ -37,11 +34,6 @@ int yycolumn = 1;
 %option nounistd
 
 %%
-
-\n { 
-    yylineno++; 
-    yycolumn = 1; 
-}
 
 "if"                    { return KEYWORD_IF; }
 "else"                  { return KEYWORD_ELSE; }
@@ -52,6 +44,8 @@ int yycolumn = 1;
 "bool"                  { return KEYWORD_BOOL; }
 "void"                  { return KEYWORD_VOID; }
 "return"                { return KEYWORD_RETURN; }
+"true"                  { yylval.num = 1; return BOOL_LITERAL; }
+"false"                 { yylval.num = 0; return BOOL_LITERAL; }
 
 "=="                    { return EQ; }
 "!="                    { return NEQ; }
@@ -102,10 +96,10 @@ int yycolumn = 1;
     return IDENTIFIER; 
 }
 
-[ \t\r]+                { yycolumn += yyleng; /* skip whitespace */ }
+[ \t\r\n]+              { /* skip whitespace */ }
 
 "//".*                  { /* skip comments */ }
 
-.                       { yycolumn++; /* ignore unknown characters */ }
+.                       { /* ignore unknown characters */ }
 
 %%

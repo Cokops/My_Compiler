@@ -9,7 +9,7 @@
 class ASTNode {
 public:
     virtual ~ASTNode() = default;
-    virtual void codegen() = 0;  // чисто виртуальный
+    virtual void codegen() = 0;
     virtual void print(int depth = 0) const = 0;
 protected:
     static void indent(int depth) {
@@ -24,12 +24,15 @@ public:
     void print(int depth = 0) const override;
 };
 
-// Числовые константы
+// Целочисленные константы
 class NumberExprAST : public ExprAST {
     double Val;
+    bool isFloat;
 public:
-    NumberExprAST(double val) : Val(val) {}
+    NumberExprAST(double val) : Val(val), isFloat(false) {}
+    NumberExprAST(double val, bool isFloat) : Val(val), isFloat(isFloat) {}
     double getValue() const { return Val; }
+    bool getIsFloat() const { return isFloat; }
     void codegen() override;
     void print(int depth = 0) const override;
 };
@@ -40,6 +43,16 @@ class StringExprAST : public ExprAST {
 public:
     StringExprAST(const std::string& val) : Val(val) {}
     const std::string& getValue() const { return Val; }
+    void codegen() override;
+    void print(int depth = 0) const override;
+};
+
+// Логические константы
+class BoolExprAST : public ExprAST {
+    bool Val;
+public:
+    BoolExprAST(bool val) : Val(val) {}
+    bool getValue() const { return Val; }
     void codegen() override;
     void print(int depth = 0) const override;
 };
@@ -151,15 +164,15 @@ public:
 
 // For оператор
 class ForStmtAST : public ASTNode {
-    ASTNode* Init;  // может быть VarDeclAST* или ExprAST* или nullptr
+    VarDeclAST* Init;
     ExprAST* Cond;
     ExprAST* Inc;
     ASTNode* Body;
 public:
-    ForStmtAST(ASTNode* init, ExprAST* cond, ExprAST* inc, ASTNode* body)
+    ForStmtAST(VarDeclAST* init, ExprAST* cond, ExprAST* inc, ASTNode* body)
         : Init(init), Cond(cond), Inc(inc), Body(body) {}
     ~ForStmtAST() { delete Init; delete Cond; delete Inc; delete Body; }
-    ASTNode* getInit() const { return Init; }
+    VarDeclAST* getInit() const { return Init; }
     ExprAST* getCond() const { return Cond; }
     ExprAST* getInc() const { return Inc; }
     ASTNode* getBody() const { return Body; }
