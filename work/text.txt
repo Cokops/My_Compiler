@@ -1,10 +1,6 @@
-int multiply(int x, int y) {
-    return x * y;
-}
-
 int main() {
-    int a = 5;
-    int b = 6;
-    return multiply(a, b);
+    float a = 3.5;
+    float b = 2.0;
+    int c = a * b;
+    return c;
 }
-// Ожидаемый результат: 30

@@ -38,3 +38,6 @@ cmake_install.cmake
 
 # Work
 !work/compiler.exe
+
+# Tests
+!tests/test_compiler.exe
