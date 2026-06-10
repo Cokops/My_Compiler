@@ -85,10 +85,8 @@ sudo apt install llvm-14-dev clang-14
 ```
 ### Генерация лексера и парсера
 
-# Генерация лексера из scanner.l
 flex -o lexer.cpp scanner.l
 
-# Генерация парсера из parser.y
 bison -d -o parser.cpp parser.y
 
 ### Установка зависимостей (Windows с vcpkg)
