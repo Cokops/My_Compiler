@@ -1,6 +1,5 @@
 int main() {
-    float a = 3.5;
-    float b = 2.0;
-    int c = a * b;
-    return c;
+    int a = 5;
+    int b = 5;
+    return a * b;
 }
