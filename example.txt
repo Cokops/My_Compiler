@@ -1,0 +1,52 @@
+
+1. Тип данных - Int
+void main() {
+    int a = 10;
+    int b = 20;
+    int c = a + b;
+    print(c);
+}
+
+2. Тип данных - Float 
+float div(float a, float b) {
+    return a / b;
+}
+
+void main() {
+    float x = 8;
+    float y = 2;
+    int result = div(x, y);
+}
+
+3. Тип данных - Bool
+int main() {
+    bool flag = true;
+    return flag;
+}
+
+4. Тип данных - Char
+int main() {
+    char ch = 'A';
+    return ch;
+}
+
+5. Цикл - While
+
+int main() {
+    int i = 0;
+    while (i < 5) {
+        i = i + 1;
+    }
+    return i;
+}
+
+6. Функция
+int sum(int a, int b) {
+    return a + b;
+}
+
+void main() {
+    int x = 10;
+    int y = 20;
+    int result = sum(x, y);
+}
