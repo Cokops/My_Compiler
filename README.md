@@ -83,11 +83,6 @@ sudo apt update
 sudo apt install build-essential flex bison cmake
 sudo apt install llvm-14-dev clang-14
 ```
-### Генерация лексера и парсера
-
-flex -o lexer.cpp scanner.l
-
-bison -d -o parser.cpp parser.y
 
 ### Установка зависимостей (Windows с vcpkg)
 
@@ -100,6 +95,11 @@ cd vcpkg
 # Установка зависимостей
 ./vcpkg install flex:b32-windows bison:b32-windows llvm:x64-windows
 ```
+### Генерация лексера и парсера
+
+flex -o lexer.cpp scanner.l
+
+bison -d -o parser.cpp parser.y
 
 ### Сборка на Windows (Visual Studio)
 
@@ -108,6 +108,28 @@ mkdir build
 cd build
 cmake -G "Visual Studio 17 2022" ..
 cmake --build . --config Release
+```
+
+## Docker
+
+### Сборка образа
+```bash
+docker build -t my_compiler .
+
+# Компиляция файла из текущей директории
+docker run --rm -v ${PWD}:/data my_compiler /data/test.txt -o /data/output.ll
+
+# Просмотр сгенерированного LLVM IR
+cat output.ll
+
+# Или просмотр внутри контейнера
+docker run --rm -v ${PWD}:/data my_compiler cat /data/output.ll
+
+# Запуск интерпретатора LLVM внутри контейнера
+docker run --rm -v ${PWD}:/data my_compiler sh -c "lli /data/output.ll"
+
+# Интерактивный режим
+docker run -it --rm my_compiler
 ```
 
 ## Использование
@@ -138,4 +160,3 @@ Write-Host "Result: $LASTEXITCODE"
 **Cokops**
 - GitHub: [@Cokops](https://github.com/Cokops)
 - Email: gerasev-z@mail.ru
----
