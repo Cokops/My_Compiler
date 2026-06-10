@@ -135,7 +135,7 @@ docker run -it --rm my_compiler
 ## Использование
 
 ### Базовые команды
-
+```bash
 ### Компиляция программы в LLVM IR
 ./build/Release/my_compiler.exe input.txt -o output.ll
 
@@ -150,7 +150,7 @@ lli output.ll
 
 ### Проверка кода возврата
 Write-Host "Result: $LASTEXITCODE"
-
+```
 ## Лицензия
 
 Проект выполнен в рамках учебного задания.
