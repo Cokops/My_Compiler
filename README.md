@@ -116,19 +116,19 @@ cmake --build . --config Release
 
 ### Базовые команды
 
-# Компиляция программы в LLVM IR
+### Компиляция программы в LLVM IR
 ./build/Release/my_compiler.exe input.txt -o output.ll
 
-# Или с указанием полного пути
+### Или с указанием полного пути
 ./my_compiler.exe text.txt
 
-# Просмотр сгенерированного LLVM IR
+### Просмотр сгенерированного LLVM IR
 cat output.ll
 
-# Запуск IR через интерпретатор LLVM
+### Запуск IR через интерпретатор LLVM
 lli output.ll
 
-# Проверка кода возврата
+### Проверка кода возврата
 Write-Host "Result: $LASTEXITCODE"
 
 ## Лицензия
